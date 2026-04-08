@@ -13,8 +13,8 @@
       "description": "Claude Code keeps cutting you off? Not anymore. Spend less, code longer, and see exactly where your tokens go — zero config.",
       "version": "1.0.0",
       "source": {
-        "source": "github",
-        "repo": "ww-w-ai/cc-token-saver"
+        "source": "url",
+        "url": "https://github.com/ww-w-ai/cc-token-saver.git"
       },
       "author": {
         "name": "taehyoungkim"
