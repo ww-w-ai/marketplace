@@ -1,0 +1,26 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "ww-w-ai",
+  "owner": {
+    "name": "ww-w-ai"
+  },
+  "metadata": {
+    "description": "Claude Code plugins by ww-w-ai"
+  },
+  "plugins": [
+    {
+      "name": "cc-token-saver",
+      "description": "Claude Code keeps cutting you off? Not anymore. Spend less, code longer, and see exactly where your tokens go — zero config.",
+      "version": "1.0.0",
+      "source": {
+        "source": "github",
+        "repo": "ww-w-ai/cc-token-saver"
+      },
+      "author": {
+        "name": "taehyoungkim"
+      },
+      "license": "Apache-2.0",
+      "keywords": ["token", "cache", "optimization", "session", "cost", "max-plan", "continue", "context-restore"]
+    }
+  ]
+}
