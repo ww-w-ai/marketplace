@@ -21,6 +21,34 @@
       },
       "license": "Apache-2.0",
       "keywords": ["token", "cache", "optimization", "session", "cost", "max-plan", "continue", "context-restore"]
+    },
+    {
+      "name": "dari-standards",
+      "description": "CC standards framework. Discovery skill with research methodology rules.",
+      "version": "0.1.0",
+      "source": {
+        "source": "url",
+        "url": "https://github.com/ww-w-ai/dari-standards.git"
+      },
+      "author": {
+        "name": "ww-w-ai"
+      },
+      "license": "Apache-2.0",
+      "keywords": ["standards", "discovery", "research"]
+    },
+    {
+      "name": "dari-devtools",
+      "description": "Plan-based autonomous PDCA execution orchestrator.",
+      "version": "0.1.0",
+      "source": {
+        "source": "url",
+        "url": "https://github.com/ww-w-ai/dari-devtools.git"
+      },
+      "author": {
+        "name": "ww-w-ai"
+      },
+      "license": "Apache-2.0",
+      "keywords": ["devtools", "bypass-pdca", "orchestrator"]
     }
   ]
 }
