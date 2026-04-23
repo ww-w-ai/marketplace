@@ -11,7 +11,7 @@
     {
       "name": "cc-token-saver",
       "description": "Claude Code keeps cutting you off? Not anymore. Spend less, code longer, and see exactly where your tokens go — zero config.",
-      "version": "1.0.0",
+      "version": "1.6.1",
       "source": {
         "source": "url",
         "url": "https://github.com/ww-w-ai/cc-token-saver.git"
