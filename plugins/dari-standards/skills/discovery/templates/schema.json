@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "dari Discovery Run Metadata",
+  "description": "Schema for Discovery run metadata -- for .ww-w-ai/standards/discovery/latest.json (run metadata, not the master plan itself)",
+  "type": "object",
+  "required": ["version", "plugin", "skill", "project", "timestamp", "summary", "phases"],
+  "properties": {
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "plugin": {
+      "type": "string",
+      "const": "standards"
+    },
+    "skill": {
+      "type": "string",
+      "const": "discovery"
+    },
+    "project": {
+      "type": "string"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "summary": {
+      "type": "object",
+      "required": ["phases_completed", "total_phases", "execution_mode"],
+      "properties": {
+        "phases_completed": {
+          "type": "integer",
+          "description": "Number of completed Phases",
+          "minimum": 0,
+          "maximum": 7
+        },
+        "total_phases": {
+          "type": "integer",
+          "description": "Total number of Phases (fixed at 7)",
+          "const": 7
+        },
+        "execution_mode": {
+          "type": "string",
+          "description": "Execution mode (automatic or manual)",
+          "enum": ["auto", "manual"]
+        },
+        "research_searches": {
+          "type": "integer",
+          "description": "Total number of research searches",
+          "minimum": 0
+        },
+        "sources_referenced": {
+          "type": "integer",
+          "description": "Number of sources referenced",
+          "minimum": 0
+        },
+        "csuite_consensus": {
+          "type": "string",
+          "description": "C-Suite consensus outcome (Go/Conditional Go/No-Go)"
+        },
+        "must_have_features": {
+          "type": "integer",
+          "description": "Number of Must-have features",
+          "minimum": 0
+        },
+        "total_domains": {
+          "type": "integer",
+          "description": "Number of domains in the sub-plan map",
+          "minimum": 0
+        }
+      }
+    },
+    "phases": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["phase", "name", "status"],
+        "properties": {
+          "phase": {
+            "type": "integer",
+            "description": "Phase number (0-6)",
+            "minimum": 0,
+            "maximum": 6
+          },
+          "name": {
+            "type": "string",
+            "description": "Phase name"
+          },
+          "status": {
+            "type": "string",
+            "description": "Execution status",
+            "enum": ["pending", "in-progress", "complete", "skipped"]
+          },
+          "output": {
+            "type": "string",
+            "description": "Relative path to the output file"
+          }
+        }
+      }
+    },
+    "output_directory": {
+      "type": "string",
+      "description": "Full discovery output path (e.g., docs/00-discovery/)"
+    }
+  }
+}

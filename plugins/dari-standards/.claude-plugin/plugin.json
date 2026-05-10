@@ -1,0 +1,16 @@
+{
+  "name": "dari-standards",
+  "version": "0.1.0",
+  "displayName": "dari-standards — CC Standards Framework",
+  "description": "CC standards framework. Discovery skill with research methodology rules.",
+  "author": {
+    "name": "ww-w-ai",
+    "url": "https://github.com/ww-w-ai/dari-standards"
+  },
+  "repository": "https://github.com/ww-w-ai/dari-standards",
+  "license": "Apache-2.0",
+  "keywords": ["cc-config", "standards", "discovery", "research"],
+  "engines": {
+    "claude-code": ">=2.3.0"
+  }
+}
