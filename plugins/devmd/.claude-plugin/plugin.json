@@ -1,0 +1,16 @@
+{
+  "name": "devmd",
+  "version": "0.1.0",
+  "displayName": "DevMD — Development as Markdown",
+  "description": "25 markdown spec files that define your entire software project. AI reads them, builds from them. Includes scan (auto-generate from codebase) and gap-analysis (verify against source).",
+  "author": {
+    "name": "ww-w-ai",
+    "url": "https://ww-w.ai"
+  },
+  "repository": "https://github.com/ww-w-ai/devmd",
+  "license": "MIT",
+  "keywords": ["claude-code", "devmd", "spec", "markdown", "documentation", "scan", "gap-analysis", "architecture", "ai-readable", "codebase-spec", "project-structure", "software-design", "code-generation"],
+  "engines": {
+    "claude-code": ">=2.3.0"
+  }
+}
