@@ -17,6 +17,7 @@ claude plugin marketplace add ww-w-ai/marketplace
 | [cc-token-saver](https://github.com/ww-w-ai/cc-token-saver) | Claude Code keeps cutting you off? Not anymore. Spend less, code longer, and see exactly where your tokens go — zero config. |
 | [dari-standards](https://github.com/ww-w-ai/dari-standards) | CC standards framework. Discovery skill with research methodology rules, and validators for CC configuration, documentation, and git practices. |
 | [dari-devtools](https://github.com/ww-w-ai/dari-devtools) | Plan-based autonomous PDCA execution orchestrator with validators for Clean Architecture, behavior-driven tests, and OWASP security. |
+| [devmd](https://github.com/ww-w-ai/devmd) | 25 markdown spec files that define your entire software project. Scan codebases, verify against source, generate specs. |
 
 ## Install a Plugin
 
@@ -24,4 +25,5 @@ claude plugin marketplace add ww-w-ai/marketplace
 claude plugin install cc-token-saver@ww-w-ai
 claude plugin install dari-standards@ww-w-ai
 claude plugin install dari-devtools@ww-w-ai
+claude plugin install devmd@ww-w-ai
 ```

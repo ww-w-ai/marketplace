@@ -49,6 +49,20 @@
       },
       "license": "Apache-2.0",
       "keywords": ["devtools", "bypass-pdca", "orchestrator"]
+    },
+    {
+      "name": "devmd",
+      "description": "25 markdown spec files that define your entire software project. Scan codebases, verify against source, generate specs.",
+      "version": "0.1.0",
+      "source": {
+        "source": "url",
+        "url": "https://github.com/ww-w-ai/devmd.git"
+      },
+      "author": {
+        "name": "ww-w-ai"
+      },
+      "license": "MIT",
+      "keywords": ["devmd", "spec", "markdown", "documentation", "scan", "gap-analysis"]
     }
   ]
 }
