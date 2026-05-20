@@ -4,7 +4,7 @@ description: 'Live token counter in your CLI. Shows real-time input/output/cache
 when_to_use: Use when user wants to install, uninstall, or configure the token-saver statusline. Triggers on "setup statusline", "install statusline", "statusline install".
 ---
 
-Manage the cc-token-saver statusline in Claude Code's `~/.claude/settings.json`.
+Manage the claude-code-token-saver statusline in Claude Code's `~/.claude/settings.json`.
 
 ## Help
 
@@ -47,7 +47,7 @@ Do not modify any settings. Just display the help text and stop.
    **Case B: Already our script** — check if path matches current `${CLAUDE_PLUGIN_ROOT}`.
    If version differs, update path silently, then print "Updated to current version." and stop.
    If same version, print "Already installed." and stop.
-   Check by matching the command path containing `cc-token-saver/scripts/statusline-logger.sh`.
+   Check by matching the command path containing `claude-code-token-saver/scripts/statusline-logger.sh`.
 
    **Case C: Different statusLine exists** — warn and ask the user:
    ```
@@ -117,7 +117,7 @@ Do not modify any settings. Just display the help text and stop.
 1. Read `~/.claude/settings.json`
 2. Check current `statusLine`:
 
-   **Not our script** — print "cc-token-saver statusline is not installed." and stop.
+   **Not our script** — print "claude-code-token-saver statusline is not installed." and stop.
 
    **Our script** — remove `statusLine` field. If `_statusLineBackup` exists, restore it to `statusLine` and delete `_statusLineBackup`.
 
