@@ -1,15 +1,15 @@
 {
   "name": "dari-devtools",
   "version": "0.1.0",
-  "displayName": "dari-devtools — Development Tools",
-  "description": "Plan-based autonomous PDCA execution orchestrator.",
+  "displayName": "dari-devtools — Code Quality & Architecture Validator",
+  "description": "3 static validators (Clean Architecture import rules, OWASP Top 10 security scan, test anti-pattern detection) + plan-driven PDCA orchestrator. Catches layer violations, SQL injection, XSS, and mock-heavy tests before they reach PR review.",
   "author": {
     "name": "ww-w-ai",
     "url": "https://github.com/ww-w-ai/dari-devtools"
   },
   "repository": "https://github.com/ww-w-ai/dari-devtools",
   "license": "Apache-2.0",
-  "keywords": ["cc-config", "devtools", "bypass-pdca", "orchestrator"],
+  "keywords": ["claude-code", "architecture-validation", "clean-architecture", "security-scan", "owasp", "test-quality", "static-analysis", "pdca", "code-review", "import-rules", "layer-violations", "anti-patterns"],
   "peerPlugins": [
     {
       "name": "bkit",
