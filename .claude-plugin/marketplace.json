@@ -63,6 +63,20 @@
       },
       "license": "MIT",
       "keywords": ["devmd", "spec", "markdown", "documentation", "scan", "gap-analysis"]
+    },
+    {
+      "name": "www-cowork",
+      "description": "AI session recap reports + per-commit verbatim directive logs. /recap for weekly reviews, /recap-commit for commit-attached collaboration history with full directive transcription.",
+      "version": "1.0.0",
+      "source": {
+        "source": "url",
+        "url": "https://github.com/ww-w-ai/www-cowork.git"
+      },
+      "author": {
+        "name": "ww-w-ai"
+      },
+      "license": "MIT",
+      "keywords": ["recap", "cowork", "ai-collaboration", "session-report", "commit-history", "directive-log"]
     }
   ]
 }
