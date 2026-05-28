@@ -66,7 +66,7 @@
     },
     {
       "name": "www-cowork",
-      "description": "AI session insight reports + per-commit verbatim directive logs. /www-insights for weekly reviews, /www-commit for commit-attached collaboration history with full directive transcription.",
+      "description": "AI session insight reports + per-commit verbatim directive logs. /cowork-insights for weekly reviews, /cowork-commit for commit-attached collaboration history with full directive transcription.",
       "version": "1.1.0",
       "source": {
         "source": "url",
@@ -76,7 +76,7 @@
         "name": "ww-w-ai"
       },
       "license": "MIT",
-      "keywords": ["www-insights", "www-commit", "cowork", "ai-collaboration", "session-report", "commit-history", "directive-log"]
+      "keywords": ["cowork-insights", "cowork-commit", "cowork", "ai-collaboration", "session-report", "commit-history", "directive-log"]
     }
   ]
 }
