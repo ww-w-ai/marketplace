@@ -9,18 +9,18 @@
   },
   "plugins": [
     {
-      "name": "cc-token-saver",
-      "description": "Claude Code keeps cutting you off? Not anymore. Spend less, code longer, and see exactly where your tokens go — zero config.",
-      "version": "2.0.1",
+      "name": "claude-code-token-saver",
+      "description": "45% cost reduction measured. Cache expiry prevention, SubTask auto-delegation, zero-cost context restoration, real-time cost dashboard. The only Claude Code plugin built from CC source analysis.",
+      "version": "2.1.0",
       "source": {
         "source": "url",
-        "url": "https://github.com/ww-w-ai/cc-token-saver.git"
+        "url": "https://github.com/ww-w-ai/claude-code-token-saver.git"
       },
       "author": {
-        "name": "taehyoungkim"
+        "name": "taekim34"
       },
       "license": "Apache-2.0",
-      "keywords": ["token", "cache", "optimization", "session", "cost", "max-plan", "continue", "context-restore"]
+      "keywords": ["claude-code", "cost-reduction", "token-optimization", "cache-management", "rate-limit", "usage-dashboard", "context-management", "api-cost", "billing", "analytics", "subtask", "session-management", "prompt-cache", "anthropic-api", "cost-tracking", "token-saver", "continue", "context-restore", "max-plan", "pay-per-use"]
     },
     {
       "name": "dari-standards",
