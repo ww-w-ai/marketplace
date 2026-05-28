@@ -66,8 +66,8 @@
     },
     {
       "name": "ai-native-cowork",
-      "description": "AI session insight reports + per-commit verbatim directive logs. /cowork-insights for weekly reviews, /cowork-commit for commit-attached collaboration history with full directive transcription.",
-      "version": "1.1.0",
+      "description": "AI session insight reports + per-commit verbatim directive logs. /cowork-insights for weekly reviews, /cowork-commit for commit-attached collaboration history with --language option and conversation-first directive logs.",
+      "version": "1.2.0",
       "source": {
         "source": "url",
         "url": "https://github.com/ww-w-ai/ai-native-cowork.git"
