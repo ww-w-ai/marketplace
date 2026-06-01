@@ -1,6 +1,6 @@
 {
   "name": "ai-native-cowork",
-  "version": "1.6.0",
+  "version": "1.6.1",
   "description": "Work-collaboration harness for Claude Code. /cowork-sprint plans work into ~1-human-week sprints WITH you, then autonomously runs each through a full research→plan→design→do→QA→fix→deploy cycle (concurrent sprints, dynamically scaffolded project-local agents, not dev-only) + /cowork-insights for AI session reports + /cowork-commit for per-commit verbatim directive logs + /cowork-doc-sync (+/cowork-doc-init) for repo docs/ organization (numbered taxonomy, LIVING/FROZEN status, cross-session drift sync via transcript replay). bkit-aware, runs standalone otherwise.",
   "author": {
     "name": "ww-w-ai"

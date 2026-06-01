@@ -1,7 +1,7 @@
 ---
 name: cowork-commit
 description: Trigger whenever the user asks to commit AND wants the commit message enriched with AI collaboration history. Creates a lightweight commit message (key decision highlights + link) and a full directive-log file with conversation transcript + recap. The key signal is the combination of (1) making a commit with (2) capturing how AI contributed. Trigger on phrases like commit with AI recap, attach collaboration history to commit, record AI work in commit, cowork-commit. DO NOT trigger for plain commits without AI documentation, standalone time-period recaps (use cowork-insights instead), PR reviews, or general git operations.
-allowedTools:
+allowed-tools:
   - Bash
   - Read
   - Glob
@@ -29,7 +29,7 @@ turns are always verbatim — never translate or paraphrase user/assistant text.
 ## Step 1: Run the Engine
 
 ```bash
-ENGINE=/Users/taehyoungkim/Documents/DEV/ww-w-ai/ai-native-cowork/src/cli.ts
+ENGINE="${CLAUDE_PLUGIN_ROOT}/src/cli.ts"
 bun run "$ENGINE" cowork-commit --path "$PWD"
 ```
 
@@ -66,7 +66,7 @@ live in the directive-log file (Step 3), not in the commit message.
 Run the engine to get full-depth directives since the last commit:
 
 ```bash
-ENGINE=/Users/taehyoungkim/Documents/DEV/ww-w-ai/ai-native-cowork/src/cli.ts
+ENGINE="${CLAUDE_PLUGIN_ROOT}/src/cli.ts"
 bun run "$ENGINE" commit-log --path "$PWD"
 ```
 
@@ -165,7 +165,7 @@ that relies on them).
 Triggered when the user asks to backfill / document existing commits.
 
 ```bash
-ENGINE=/Users/taehyoungkim/Documents/DEV/ww-w-ai/ai-native-cowork/src/cli.ts
+ENGINE="${CLAUDE_PLUGIN_ROOT}/src/cli.ts"
 ```
 
 1. List commits: `git log --format='%H %cI %s' --no-merges`.

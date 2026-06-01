@@ -1,5 +1,9 @@
 ---
 name: cowork-insights
+allowed-tools:
+  - Bash
+  - Read
+  - Glob
 description: Invoke for "/cowork-insights" command or when the user asks to summarize, review, or report on past Claude Code sessions. Analyzes sessions to show key prompts (verbatim), structured assessments (goal/outcome/friction), tool usage patterns, and actionable insights. Produces HTML report + shareable Markdown for Jira/Notion/Slack. Three report formats — full (deep narrative), standard (core insights), minimal (quick team share). Supports --from/--to with absolute (2026-03-01) or relative (7d, 2w, 1m) dates. Trigger on phrases like weekly status update, sprint recap, what did I do with Claude, AI usage patterns, session history, minimal recap, what I worked on today, share with team, cowork-insights. DO NOT invoke for active tasks (debugging, refactoring, code review, project setup) or for commit-time recaps (use cowork-commit instead).
 ---
 
@@ -17,7 +21,7 @@ Parse the user's request to determine these flags:
 | `--from` | "this week" / "7d" / "last month" / "1m" / "2026-03-01" | omit (all time) |
 | `--to` | usually omit | omit (now) |
 | `--scope` | "this project" → `default`, "with subfolders" → `with-subfolder`, "everything" → `all` | `default` |
-| `--path` | specific folder path if mentioned | omit (current dir) |
+| `--path` | specific folder if mentioned, else the user's repo | **always pass `"$PWD"`** — never omit (the engine's own cwd is the plugin dir, so omitting scans the wrong project) |
 | `--exclude-path` | folders to exclude (repeatable) | omit |
 | `--tz` | timezone if mentioned | `Asia/Seoul` |
 | `--format` | "full recap" → `full`, "quick" → `standard`, "minimal" / "standup" → `minimal`. Auto: 20+ sessions → `full`, 1-19 → `standard` | auto |
@@ -29,9 +33,9 @@ Parse the user's request to determine these flags:
 Run a **single command**. This handles everything: data collection, parallel LLM generation, assembly, and rendering.
 
 ```bash
-cd /Users/taehyoungkim/Documents/DEV/ww-w-ai/ai-native-cowork && bun run src/generate-narrative.ts \
+bun run "${CLAUDE_PLUGIN_ROOT}/src/generate-narrative.ts" \
   --from <FROM> --to <TO> \
-  --scope <SCOPE> --path <PATH> \
+  --scope <SCOPE> --path "$PWD" \
   --exclude-path <EXCLUDE> \
   --tz <TZ> \
   --format <FORMAT> \
