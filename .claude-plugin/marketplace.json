@@ -66,8 +66,8 @@
     },
     {
       "name": "ai-native-cowork",
-      "description": "AI session insight reports + per-commit verbatim directive logs. /cowork-insights for weekly reviews, /cowork-commit for commit-attached collaboration history with --language option and conversation-first directive logs.",
-      "version": "1.2.0",
+      "description": "Work-collaboration harness for Claude Code. /cowork-sprint (plan->execute sprint orchestrator that discovers/scaffolds purpose-fit agents, growing your agent legion) + /cowork-insights (AI session reports) + /cowork-commit (verbatim directive logs) + /cowork-doc-sync (+/cowork-doc-init) (docs/ organization). Agent-first SessionStart guidance. bkit-aware, standalone otherwise.",
+      "version": "1.6.0",
       "source": {
         "source": "url",
         "url": "https://github.com/ww-w-ai/ai-native-cowork.git"
@@ -76,7 +76,7 @@
         "name": "ww-w-ai"
       },
       "license": "MIT",
-      "keywords": ["cowork-insights", "cowork-commit", "cowork", "ai-collaboration", "session-report", "commit-history", "directive-log"]
+      "keywords": ["cowork-sprint", "cowork-insights", "cowork-commit", "cowork-doc-sync", "cowork-doc-init", "cowork", "ai-collaboration", "sprint", "agent-orchestration", "agent-legion", "session-report", "commit-history", "directive-log", "doc-organization", "documentation-sync"]
     }
   ]
 }
