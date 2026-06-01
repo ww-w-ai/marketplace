@@ -136,8 +136,12 @@ independent clusters dispatched concurrently):
     · concurrency = Leader's concurrent dispatch from main (parallel Agents ‖ one fan-out Workflow)
     · QA gate per sprint: the phase's **exit predicate** must hold before deploy/deliver, and the
       Leader VERIFIES it by running the check (real exit code) — never by trusting a transcript claim.
-      Engineering target = tsc 0 + suite green + matchRate **100%**, cap **5** fix-rounds. 3-part
-      predicate contract (end-state + executed check + reward-hack invariants) → references/sprint-method.md §5b.
+      Mechanical baseline = **detect the stack, run ITS tools** (format-check+lint+type/compile+test;
+      tooling differs by language — JS/TS tsc+eslint, Python ruff+mypy+pytest, Go vet+test, …; run only
+      what the project has). Engineering target = baseline green + matchRate **100%**, cap **5** fix-rounds.
+      Plus a **ship-hygiene mechanical scan** (full set at sprint; cheap subset per-commit) — secrets/keys,
+      conflict markers, abs-paths/host·port, manifest/config validity, packaging hygiene → §5.
+      3-part predicate contract (end-state + executed check + reward-hack invariants) → references/sprint-method.md §5b.
     · intent-audit gate (Tier-2, before deploy): QA proves *output matches plan*; this proves *output
       serves the INTENT*. Run from a **reset perspective** — dispatch `cowork-intent-auditor` (a fresh
       agent that did NOT do the work) with intent + artifacts + QA result. PASS required → details §5.
@@ -163,7 +167,7 @@ written reason** it was carried (why it could not finish now). Surface any sprin
 | | bkit present | standalone (no bkit) |
 |---|---|---|
 | Team | borrow bkit agents **(embodied in main, not `Agent(cto-lead)`)** | Leader + scaffolded local agents |
-| Phase skills | reuse `gap-detector`, `/simplify`, qa skills *internally* | built-in cycle + `Bash` (tsc/test/git) |
+| Phase skills | reuse `gap-detector`, `/simplify`, qa skills *internally* | built-in cycle + `Bash` (stack's typecheck/test + git) |
 | UX | **same single `/cowork-sprint` conversation** — no split commands | identical |
 
 The user experience is identical with or without bkit. bkit only enriches the internal toolset.
@@ -171,7 +175,7 @@ The user experience is identical with or without bkit. bkit only enriches the in
 ## Gates & safety
 
 - **Planning approval gate** (PHASE 0 step 6) — mandatory before execution unless `--auto-plan`.
-- **Irreversible / outward actions** (deploy, remote migration, push, mass delete) — pause for confirmation even in autonomous mode; for high-stakes, run an adversarial 2-lens review first (correctness/data-integrity + integration/regression).
+- **Irreversible / outward actions** (deploy, remote migration, push, mass delete) — pause for confirmation even in autonomous mode; for high-stakes, run an adversarial review first with **risk-selected lenses** (not a fixed count — pick lenses orthogonal to the action's risk; min = correctness + ≥1 dominant-risk lens). **For installable/runnable artifacts (plugins, libs, CLIs, templates), the consumer-environment lens is MANDATORY** — one structured LLM pass (≥high-confidence only, with an exclusion list): portability · undeclared deps · undocumented env/config · public-interface breaks · docs↔behavior drift · install→first-run integrity · new-required-input. The cheap mechanical subset (abs-paths, conflict markers, manifest validity) also runs per-commit (cowork-commit). 7-ask checklist + v1.6.0 case → references/sprint-method.md §5.
 - **QA gate** per sprint — must pass before deploy/deliver.
 - **Git**: never commit/push without explicit user request (global rule). Stage by name, WHY-focused message, `Co-Authored-By: Claude`.
 

@@ -93,7 +93,8 @@ verbatim (the prompt wording is the reusable know-how). Classify every turn:
   constraint was chosen or removed, and assumptions a successor must not silently violate. If a
   successor could pick up the work cleanly without a turn, it is droppable trivia.
 - **DROP the trivia** (whole turn): exploratory chatter, tool-call notifications / status pings,
-  transient back-and-forth, acknowledgments, "focus on X" redirections, and **mid-way reversals
+  transient back-and-forth, acknowledgments **in any language** ("ok" / "go" / "진행" / "はい" / …),
+  "focus on X" redirections, and **mid-way reversals
   that were later superseded** (keep only the conclusion that won, not the abandoned detours).
   The Recap narrates the flow; the log keeps only the substantive, still-standing decisions.
 - **Reactive turns**: a kept one emits its `precedingAssistant`/`options`/`decision`, so judge
@@ -137,8 +138,33 @@ The file rides in the SAME commit created by Step 4.
    documents — usually the primary change unit.
 3. **Stage by filename, per unit** — `git add <file> <file>…` for that unit only.
    **Never `git add .` / `git add -A`** (stage by name; secrets like `.env`/credentials never staged).
-4. **Pre-commit gate** — re-scan the assembled log (`docs/commit-log/$TS-$slug.md`) with the
-   Step 3a regex. On any match, **STOP — do not commit**; report the line and remove it first.
+4. **Pre-commit gate** — two backstops, both must pass before committing:
+   - **Secret gate** — re-scan the assembled log (`docs/commit-log/$TS-$slug.md`) with the
+     Step 3a regex. On any match, **STOP — do not commit**; report the line and remove it first.
+   - **Consumer-POV mechanical gate** (auto — for repos that ship installable/runnable artifacts:
+     plugins, libraries, CLIs, templates, actions) — cheap deterministic scans of the **staged diff**
+     for "ships broken to the consumer" classes. **Commit stays mechanical-only**; the heavy
+     installer-POV *judgment* review (undeclared deps, docs↔behavior drift, public-interface breaks,
+     env/config assumptions, install→first-run integrity) runs as **one LLM pass at the cowork-sprint
+     review gate**, not here (cowork-sprint `references/sprint-method.md` §5). Three checks, all must
+     pass; on any hit **STOP and fix** before committing:
+     1. **Author-absolute paths** — `/Users/<you>/…`, `/home/<you>/…` leaking into shipped files
+        (use repo-relative or `${CLAUDE_PLUGIN_ROOT}`). The lens the v1.6.0 bug escaped.
+     2. **Merge-conflict markers** — `<<<<<<<` / `=======` / `>>>>>>>` shipped = broken file.
+     3. **Manifest/JSON validity** — any staged `*.json` (manifest, plugin.json, marketplace) must
+        parse; a malformed manifest breaks the consumer's install/load.
+
+```bash
+# Commit-time mechanical final-checks (heavy installer-POV LLM review = cowork-sprint §5).
+# Prior art (approach only): gitleaks (secret regex+entropy), pre-commit-hooks
+# (check-merge-conflict, check-json) — OSS; here as inline grep/jq, no code copied.
+git diff --cached -U0 | grep -E '^\+' | grep -nE '/Users/[^/ ]+/|/home/[^/ ]+/' \
+  && echo 'PATH: author-absolute path staged — fix' || echo 'paths clean'
+git diff --cached --name-only -z | xargs -0 grep -lE '^(<{7}|={7}|>{7})( |$)' 2>/dev/null \
+  && echo 'CONFLICT: merge markers staged — fix' || echo 'no conflict markers'
+for f in $(git diff --cached --name-only | grep -E '\.json$'); do \
+  jq -e . "$f" >/dev/null 2>&1 || echo "BAD-JSON: $f does not parse — fix"; done
+```
 5. **Hunk-split limitation** — if core files interleave two concerns at the **line level**
    (the same file's hunks can't be cleanly separated by filename), do **not** force a broken
    split. State the limitation explicitly and fall back to a sensible smaller number of commits
@@ -183,7 +209,7 @@ ENGINE="${CLAUDE_PLUGIN_ROOT}/src/cli.ts"
 6. Apply the **Step 3a scope-filter** to the turns (drop personal/financial/credential/off-scope
    turns; drop-on-doubt; scan assistant context on reactive turns), then write
    `docs/commit-log/$TS-<slug>.md` (slug = short English descriptor). On collision append `-2`.
-   Run the Step 4 pre-commit secret gate before committing.
+   Run the Step 4 pre-commit gates (secret + consumer-POV) before committing.
    The commit hash MAY be included in the body (commit already exists — no paradox).
 7. Update `docs/commit-log/README.md` (time order, append-only).
 8. Commit: `git add docs/commit-log/ && git commit -m "docs(commit-log): backfill <range>"`
