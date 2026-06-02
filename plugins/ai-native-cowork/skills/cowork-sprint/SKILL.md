@@ -128,7 +128,8 @@ Leader runs the approved roadmap. For each sprint (sequential clusters one by on
 independent clusters dispatched concurrently):
 
   CYCLE per sprint:
-    research → plan-detail → design → do → QA → fix → intent-audit → deploy/deliver
+    research → plan-detail → design → do → QA → fix → intent-audit → commit → deploy/deliver
+    (then, ONCE after all sprints: → doc-sync. Both commit & doc-sync are mandatory, not optional — see below.)
     · research = gather the facts THIS sprint needs before planning detail (codebase reality,
       external specs, constraints); never start `do` on assumptions (Research-before-Do).
     · choose an execution pattern per work-chunk:
@@ -147,6 +148,11 @@ independent clusters dispatched concurrently):
     · intent-audit gate (Tier-2, before deploy): QA proves *output matches plan*; this proves *output
       serves the INTENT*. Run from a **reset perspective** — dispatch `cowork-intent-auditor` (a fresh
       agent that did NOT do the work) with intent + artifacts + QA result. PASS required → details §5.
+    · commit (MANDATORY — via `/cowork-commit`, NOT a bare `git commit`): once a sprint's gate (QA +
+      intent-audit) is green, commit its work with `/cowork-commit` (WHY-focused message + Co-Authored-By
+      + AI directive-log + the mechanical-hygiene subset). Under the global git-safety gate (explicit user
+      request; never push without it). Anti-pattern: settling for a bare `git commit` and skipping the
+      directive-log — the cowork-commit step is required, not optional. Stage by name (no `git add .`).
     · agent self-evolution (after a chunk, off the QA/intent-audit signals): if an OWNED scaffolded
       agent fell short AND the gap is a DEFINITION defect (recurs, not a one-off), refine its `.md`
       (≤1500-word cap, compact-not-append; split if mis-scoped), re-dispatch. Cap 2 rounds/agent →
@@ -157,7 +163,12 @@ independent clusters dispatched concurrently):
 After each sprint cluster: **free-perspective augmentation pass** — step outside the plan and scan for
 improvements, risks, and out-of-plan impact the plan didn't anticipate (the open lens a plan-bound check
 misses); for code, invoke Skill(/simplify).
-After all sprints: **consolidated report** — per sprint: what shipped, QA result, and **carry items**.
+After all sprints: **consolidated report** — per sprint: what shipped, QA result, and **carry items** —
+**immediately followed by `/cowork-doc-sync` (MANDATORY closing step, not optional, not a "later" suggestion)**:
+align docs/ to the shipped truth in one pass — `01-built` as-built + CLAUDE.md summary + built-complete
+plans → FROZEN/`04-legacy`. Anti-pattern: ending the sprint at the report and *proposing* doc-sync as a
+separate follow-up — that is exactly the drift this skill exists to prevent. Skipping doc-sync = the sprint
+is NOT done (docs left stale). Run it as the cycle's terminal step before declaring completion.
 Default = **do NOT defer** — finish in-scope work this run. If something genuinely must carry to a future
 sprint, it is **never silently dropped or silently expanded**, AND the report MUST state the **explicit
 written reason** it was carried (why it could not finish now). Surface any sprint that paused unresolved.

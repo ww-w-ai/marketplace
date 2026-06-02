@@ -59,8 +59,12 @@ Output of PHASE 0: a roadmap (sprint list + order + parallelism + assigned agent
 Each sprint runs a full cycle. The phase names are internal stages (never user sub-commands):
 
 ```
-research → plan-detail → design → do → QA → fix → intent-audit → deploy/deliver
+research → plan-detail → design → do → QA → fix → intent-audit → commit → deploy/deliver
+                                                                   (then ONCE after all sprints → doc-sync)
 ```
+
+- **commit** (per sprint, after its gate is green) is MANDATORY via `/cowork-commit` — never a bare `git commit` (it adds the WHY message + Co-Authored-By + AI directive-log + the mechanical-hygiene subset). Under the global git-safety gate (explicit user request; never push without it).
+- **doc-sync** runs ONCE after all sprints via `/cowork-doc-sync` — MANDATORY terminal step, not a "later" suggestion. Skipping it = the sprint is not done (docs left stale). Both are detailed in SKILL.md PHASE 1.
 
 Gates fire at **different phases** (catch drift early, not just at the end):
 - **Research sign-off** (before `plan-detail`): the facts THIS sprint depends on are gathered — codebase reality, external specs, constraints, prior art. Never enter `do` on assumptions (CLAUDE.md "Research-before-Do" — Research-less Do is an anti-pattern).
@@ -125,7 +129,7 @@ Path: `.ww-w-ai/cowork-sprint/status.json`
       "planFile": "docs/.../sprint-1.plan.md",
       "deps": ["sprint-0"],
       "agents": ["role-a", "role-b"],
-      "cyclePhase": "research | plan-detail | design | do | qa | fix | intent-audit | deploy | done",
+      "cyclePhase": "research | plan-detail | design | do | qa | fix | intent-audit | commit | deploy | done",
       "status": "pending | in-progress | blocked | completed | failed | archived",
       "pattern": "delegate | inline | workflow | mixed",
       "matchRate": null,
