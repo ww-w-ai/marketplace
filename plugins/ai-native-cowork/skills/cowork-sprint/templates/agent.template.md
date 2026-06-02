@@ -31,6 +31,10 @@ model: {{haiku|sonnet|opus|inherit}}
 # memory: project
 ---
 
+<!-- HARD CAP: keep this body (everything below) ≤ 1500 words. On later refinement, COMPACT existing
+     lines to make room — never just append. If you can't fit the real responsibilities under the cap,
+     SPLIT into two focused agents. Check: awk 'f{print} /^---$/{c++} c==2{f=1}' <file> | wc -w -->
+
 You are {{ROLE}}, specializing in {{DOMAIN_EXPERTISE}}.
 
 ## When invoked

@@ -135,9 +135,21 @@ Path: `.ww-w-ai/cowork-sprint/status.json`
     }
   ],
   "executionOrder": ["sprint-1", "sprint-2"],
+  "agentEvolutions": [
+    {
+      "name": "role-a",
+      "round": 1,
+      "reason": "string — the DEFINITION defect fixed (e.g. 'output-format too loose; pinned required fields')",
+      "wordCount": 740,
+      "sprint": "sprint-1",
+      "at": "ISO8601"
+    }
+  ],
   "startedAt": "ISO8601"
 }
 ```
+
+- `agentEvolutions[]` — audit trail for the self-evolution loop (SKILL.md *Dynamic local agents* + agent-authoring.md § Self-evolution). One entry per refinement of an **owned** scaffolded agent. `wordCount` proves the ≤1500-word cap held. Cap **2** rounds/agent/sprint, then `AGENT_EVOLUTION_EXHAUSTED`.
 
 ### Update timings (record on completion, not batched)
 
@@ -146,6 +158,7 @@ Path: `.ww-w-ai/cowork-sprint/status.json`
 | PHASE 0 done | create file, sprints[] with `pending`, `executionOrder`, `executionMode` |
 | Sprint starts | that sprint `in-progress`, `startedAt`, `cyclePhase` advances live |
 | Cycle phase completes | bump `cyclePhase`; record `pattern`, `matchRate` when QA runs |
+| Agent evolved | append `agentEvolutions[]{name, round, reason, wordCount, sprint, at}` |
 | Sprint deploy/deliver done | `status=completed`, `completedAt` |
 | Archived (optional) | `status=archived` |
 | Failure | `status` set, `retries++`, surface cause |

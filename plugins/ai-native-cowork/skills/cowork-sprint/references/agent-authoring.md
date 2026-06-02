@@ -70,12 +70,53 @@ The official examples and the top collections converge on:
 - editor / builder / fixer → `Read, Write, Edit, Bash, Glob, Grep`
 - Omit `tools` entirely **only** when the agent genuinely needs everything (rare — do it intentionally).
 
-## Length & focus
+## Length & focus  (HARD CAP — mechanically enforced)
 
 - Simple agents: stay near the official **~150-250 words** (role → when-invoked → checklist → output → principle). Works great.
 - Deep experts: 500-1400 words is fine **if every line earns it**. Rule: *as long as needed to be unambiguous, no longer.*
-- **One agent = one job.** A sprawling generalist is worse than two focused agents.
+- **HARD CAP: the system-prompt body (everything after the closing frontmatter `---`) must be ≤ 1500 words.** Check it mechanically before saving and after every evolution:
+  ```bash
+  # body = lines after the 2nd '---'; fail if > 1500 words
+  awk 'f{print} /^---$/{c++} c==2{f=1}' .claude/agents/<role>.md | wc -w
+  ```
+- **The cap forces compaction, not accretion.** If a change would push the body over 1500 words, you may NOT just append — first **re-organize and compress** existing lines (dedup, merge overlapping bullets, cut filler) to make room. A longer agent is not a better agent.
+- **One agent = one job.** A sprawling generalist is worse than two focused agents. If you can't stay under the cap without dropping real responsibilities, that is a signal to **split the role into two focused agents**, not to raise the ceiling.
 - Don't paste reference manuals into the body — use the `skills:` field for heavy domain knowledge.
+
+## Self-evolution — evaluate the output, then refine the agent (bounded)
+
+A scaffolded agent is a **first draft**, not a final artifact. After it runs, judge its output and, when the shortfall is in the *definition* (not the task), rewrite the agent so the whole roster sharpens over the sprint. This compounds: the improved `.md` is version-controlled and reused next sprint.
+
+**Scope — what may be evolved:** ONLY project-local `.claude/agents/*.md` that **cowork-sprint owns** (scaffolded this run, or a prior cowork-sprint scaffold). **Never rewrite** plugin-provided, user-global, or fixed shipped agents (`cowork-intent-auditor`, `cowork-facet-extractor`) — those are borrowed read-only.
+
+```
+Per owned agent, max 2 evolution rounds per sprint (EVOLVE_CAP). Then escalate, don't keep churning.
+
+1. EVALUATE — reuse signals you ALREADY have: the chunk's exit-predicate (real exit code), the QA
+   gate result, the intent-audit verdict, /simplify findings. Do NOT add a heavy new eval pass — piggyback.
+2. DIAGNOSE  (metacognition gate — the crux) — is the gap a DEFINITION defect or a one-off?
+     DEFINITION defect  → would RECUR on similar tasks: vague role, missing constraint, wrong/loose
+                          output-format, over-broad scope, missing first-step. → evolve the agent.
+     ONE-OFF            → task-specific difficulty, flaky input, an honest hard case. → just fix the
+                          WORK; leave the agent definition alone.
+   Churning the agent on one-off noise is reward-hacking the loop — resist it. When the call is
+   genuinely unclear, trust the RESET-perspective signal (the intent-audit was done by a fresh agent)
+   over your own "it's basically fine."
+3. REFINE — rewrite the .md targeting the SPECIFIC defect, nothing else:
+     missing constraint → add to Constraints ·  weak/ambiguous output → sharpen Output format
+     mis-fires / won't trigger → fix the description triggers ·  wrong tools → adjust the allowlist
+   Stay ≤ the 1500-word HARD CAP → compact existing lines to make room (never append past it).
+   If the role keeps failing across rounds, it is MIS-SCOPED → SPLIT into two focused agents
+   (and re-assign the chunks), do not inflate one agent.
+4. RE-DISPATCH the same chunk (or the next same-role chunk) with the evolved agent.
+5. RECORD in status.json → agentEvolutions[]{ name, round, reason, wordCount } (audit trail + proof
+   the cap held). The evolved .md persists = compounding roster quality across sprints.
+6. After EVOLVE_CAP rounds still failing the predicate → AUTO-PAUSE (AGENT_EVOLUTION_EXHAUSTED) and
+   report: the role is likely wrong-scoped or the task needs human input. Never emit a false "done".
+```
+
+- This is a generator→evaluator→refine loop on the **agent definition itself** — the same Evaluator-Optimizer shape used for code, applied one level up.
+- It runs inside PHASE 1's cycle, off the QA/intent-audit signals — see SKILL.md *Dynamic local agents* and the *AGENT_EVOLUTION_EXHAUSTED* auto-pause trigger.
 
 ## Model selection (cost-aware)
 
@@ -92,3 +133,5 @@ The official examples and the top collections converge on:
 - [ ] body has role → when-invoked → responsibilities → output-format → constraints
 - [ ] output-format makes the returned summary self-contained for the Leader
 - [ ] one job, unambiguous, no filler
+- [ ] **body ≤ 1500 words** (`awk`/`wc -w` check above) — compact, don't append, to fit
+- [ ] (after a run) evaluated output → evolved the agent iff the gap was a DEFINITION defect (not a one-off)

@@ -10,7 +10,6 @@ triggers:
   - run sprints
   - plan and execute
 argument-hint: "[goal / feature set / plan-file(s)]  [--auto-plan]"
-disable-model-invocation: true
 allowed-tools:
   - Read
   - Write
@@ -112,10 +111,13 @@ For each needed role:
        read  templates/agent.template.md   (researched high-performance template)
        write .claude/agents/<role>.md       (project-local, version-controllable)
              — fill role, description(triggers), tools(least-privilege), model
+             — body ≤ 1500-word HARD CAP (mechanically checked; compact, don't sprawl)
 In PHASE 1 dispatch them:  Agent(subagent_type="<role>")   or   Workflow agentType:"<role>"
+Then EVOLVE them from their output (loop below) — a scaffold is a first draft, not the final agent.
 ```
 
 - **How to write a strong agent** (frontmatter, description-triggers, system-prompt structure, length, tool scoping) → **`references/agent-authoring.md`** (synthesized from official docs + 36k/21k/12k★ collections). Read it before scaffolding.
+- **Agents self-evolve from their output (bounded).** After an owned scaffolded agent runs, judge its output against the signals you already have (exit-predicate, QA, intent-audit) and, **only when the gap is a DEFINITION defect** (would recur — vague role, missing constraint, loose output-format, over-broad scope), rewrite its `.md` to fix exactly that. Stay under the **1500-word cap by compaction, never accretion**; if a role keeps failing, **split it** rather than inflate it. Max **2** evolution rounds/agent/sprint, then auto-pause `AGENT_EVOLUTION_EXHAUSTED`. Owned = cowork-sprint's own project-local scaffolds **only** — never rewrite borrowed plugin/user-global or the fixed shipped agents (`cowork-intent-auditor`, `cowork-facet-extractor`). Full loop (evaluate→diagnose→refine→re-dispatch→record) → **`references/agent-authoring.md` § Self-evolution**.
 - **Discovery is plugin-agnostic.** bkit, when present, is just one source in the pool above (its cto-lead team, gap-detector, qa agents) — reuse it like any other; bkit absent changes nothing about the discovery order. The Leader stays in main either way.
 - **This plugin ships one fixed agent — `cowork-intent-auditor`** (domain-agnostic Tier-2 intent audit, used by the intent-audit gate), found by the same discovery. Principle: **generic meta-roles ship fixed; domain-specific execution roles are scaffolded.**
 
@@ -145,7 +147,12 @@ independent clusters dispatched concurrently):
     · intent-audit gate (Tier-2, before deploy): QA proves *output matches plan*; this proves *output
       serves the INTENT*. Run from a **reset perspective** — dispatch `cowork-intent-auditor` (a fresh
       agent that did NOT do the work) with intent + artifacts + QA result. PASS required → details §5.
-    · update status.json as each sprint/cycle-phase completes (record on completion, not batched)
+    · agent self-evolution (after a chunk, off the QA/intent-audit signals): if an OWNED scaffolded
+      agent fell short AND the gap is a DEFINITION defect (recurs, not a one-off), refine its `.md`
+      (≤1500-word cap, compact-not-append; split if mis-scoped), re-dispatch. Cap 2 rounds/agent →
+      else AGENT_EVOLUTION_EXHAUSTED. Borrowed/fixed agents are read-only. → references/agent-authoring.md
+    · update status.json as each sprint/cycle-phase completes (record on completion, not batched);
+      record any agent evolution → agentEvolutions[]{name, round, reason, wordCount}
 
 After each sprint cluster: **free-perspective augmentation pass** — step outside the plan and scan for
 improvements, risks, and out-of-plan impact the plan didn't anticipate (the open lens a plan-bound check
@@ -185,6 +192,7 @@ PHASE 1 runs unattended, so "when do I stop and ask the human" must be explicit.
 
 - **QUALITY_GATE_FAIL** — QA gate not green (tests failing, critical issue, data-flow broken).
 - **ITERATE_EXHAUSTED** — fix-loop hit its cap (**5**) and the predicate still doesn't hold. Never emit a false "done" to escape the loop (truthful-completion); pause and report instead.
+- **AGENT_EVOLUTION_EXHAUSTED** — an owned scaffolded agent hit its evolution cap (**2** rounds) and its output still fails the predicate. The role is likely mis-scoped (split it) or the task needs human input — pause and report; don't keep rewriting the agent.
 - **BUDGET / TIME_EXCEEDED** — cumulative cost or wall-clock passes the user's stated bound (if any).
 - **IRREVERSIBLE_ACTION** — about to deploy/migrate/push/mass-delete (see above).
 
