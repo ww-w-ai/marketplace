@@ -67,7 +67,7 @@
     {
       "name": "ai-native-cowork",
       "description": "Work-collaboration harness for Claude Code. /cowork-sprint (plan->execute sprint orchestrator that discovers/scaffolds purpose-fit agents, growing your agent legion) + /cowork-insights (AI session reports) + /cowork-commit (verbatim directive logs) + /cowork-doc-sync (+/cowork-doc-init) (docs/ organization). Agent-first SessionStart guidance. bkit-aware, standalone otherwise.",
-      "version": "1.9.0",
+      "version": "1.10.0",
       "source": {
         "source": "url",
         "url": "https://github.com/ww-w-ai/ai-native-cowork.git"
