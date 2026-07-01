@@ -67,7 +67,7 @@
     {
       "name": "ai-native-cowork",
       "description": "Work-collaboration harness for Claude Code. /cowork-sprint (plan->execute sprint orchestrator that discovers/scaffolds purpose-fit agents, growing your agent legion; optional dev profile vendors a standalone expert-agent legion + two-axis gap-analysis, all knob-tunable) + /pdca-wf (single-feature PDCA via native Workflow, verify-to-100) + /cowork-insights (AI session reports) + /cowork-commit (verbatim directive logs) + /cowork-doc-sync (+/cowork-doc-init) (docs/ organization). Agent-first SessionStart guidance. Fully standalone.",
-      "version": "1.13.0",
+      "version": "1.14.0",
       "source": {
         "source": "url",
         "url": "https://github.com/ww-w-ai/ai-native-cowork.git"
