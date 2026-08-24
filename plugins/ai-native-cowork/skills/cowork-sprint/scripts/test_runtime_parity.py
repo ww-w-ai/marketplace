@@ -49,7 +49,7 @@ class RuntimeParityTests(unittest.TestCase):
         phrases = (
             "independent roadmap review", "Sprint Brief", "independent Plan review",
             "independent Design review", "Targeted tests", "gap check", "intent audit",
-            "QA diff question", "own commit", "checkpoint", "adjacent regression",
+            "QA diff question", "own commit", "cowork-commit", "bare `git commit`", "checkpoint", "adjacent regression",
             "full regression", "documentation synchronization", "completion report",
             "five fix-and-recheck", "explicit user approval",
         )
@@ -67,6 +67,8 @@ class RuntimeParityTests(unittest.TestCase):
             self.assertIn("cowork-method.md", text)
             self.assertIn("schedule.py", text)
             self.assertIn("state.py", text)
+            self.assertIn("invokes `cowork-commit`", text)
+            self.assertIn("directive log exist", text)
 
     def test_matrix_detects_a_removed_gate(self):
         text = read(RUNTIMES["codex"])
