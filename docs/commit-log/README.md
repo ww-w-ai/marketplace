@@ -22,3 +22,4 @@
 | 2026-07-03 18:44:26 | feat(cowork-sprint): on-demand measurable verification gates + dev-as-sample agent archetypes — v1.16.0 | [measurable-gates-and-agent-archetypes](./20260703-184426-measurable-gates-and-agent-archetypes.md) |
 | 2026-08-25 08:00:51 | docs(release): add Codex launch docs for v1.18.0 | [codex-launch-docs](./20260825-080051-codex-launch-docs.md) |
 | 2026-08-25 08:10:47 | fix(cowork-sprint): enforce AI-aware sprint commits | [enforce-cowork-commit](./20260825-081047-enforce-cowork-commit.md) |
+| 2026-08-25 08:19:37 | fix(cowork): separate initiative dialogue from sprint provenance | [sprint-provenance-model](./20260825-081937-sprint-provenance-model.md) |

@@ -10,9 +10,42 @@ allowed-tools:
   - Edit
 ---
 
-You are creating a git commit that includes an **AI collaboration recap** — a record of how the developer collaborated with AI to produce this commit's changes.
+You are creating a git commit with durable decision provenance. Use transcript provenance for ordinary interactive work and artifact provenance for autonomous `cowork-sprint` execution.
 
 Claude Code and Codex histories use one normalized turn contract. Codex goal-control envelopes are never user directives and must not appear in the recap or directive log.
+
+## Mode routing
+
+```text
+ordinary interactive commit
+  -> Transcript mode (Steps 1–4)
+
+called by cowork-sprint after a verified sprint
+  -> Sprint provenance mode (below), then Step 4
+```
+
+Do not use transcript mode merely because a sprint needs a commit. In an autonomous roadmap, user dialogue normally clusters before execution; worker prompts and agent instructions are not user intent.
+
+## Sprint provenance mode
+
+The `cowork-sprint` leader supplies:
+
+- the initiative intent log created once after roadmap approval;
+- the sprint Brief, reviewed Plan, reviewed Design, WorkList, and sprint report;
+- targeted-test, gap-check, QA-diff, and intent-audit evidence;
+- any actual user intervention since the previous sprint checkpoint.
+
+Write `docs/commit-log/<timestamp>-<slug>.md` using [`references/sprint-provenance-format.md`](references/sprint-provenance-format.md). The log is artifact-led:
+
+1. Link the initiative intent. Do not copy the same initial conversation into every sprint.
+2. Record the sprint's intended outcome and the decisions that changed or constrained implementation. Cite their artifact paths.
+3. Record verification and residuals from real evidence.
+4. Add `User Intervention Delta` only when the user actually intervened during this sprint. Those kept turns remain verbatim and pass the same scope and secret filters as transcript mode. Otherwise write `None — autonomous execution continued from the approved roadmap.`
+5. Never treat worker prompts, reviewer prompts, Goal-control envelopes, or agent messages as user conversation.
+
+The commit recap summarizes initiative intent, sprint outcome, and material decision deltas. It links the sprint provenance file. Zero new user turns is normal and must not block the commit.
+
+Then apply Step 4 unchanged. The provenance file and its README row ride in the same sprint commit.
 
 ## Why this skill exists (the lens for every keep/drop decision)
 
@@ -28,7 +61,7 @@ This affects the **Recap section** (Summary, Friction, Assessment) and the **com
 The **Conversation Log** contains only the *kept* turns (see Step 3 scope-filter); kept
 turns are always verbatim — never translate or paraphrase user/assistant text.
 
-## Step 1: Run the Engine
+## Transcript mode — Step 1: Run the Engine
 
 ```bash
 ENGINE="${CLAUDE_PLUGIN_ROOT}/src/cli.ts"

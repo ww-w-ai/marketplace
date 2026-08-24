@@ -31,7 +31,7 @@ Execute these rows in order. A row completes only when its exit evidence exists.
 | `gap-check` | fresh QA evidence compares every WorkList item with built artifacts | complete coverage; no blocker or major gap |
 | `qa-diff` | root asks the required diff question once | every unrequested change is removed or justified |
 | `intent-audit` | fresh intent auditor receives intent, artifacts, and gaps | PASS |
-| `sprint-commit` | root invokes `cowork-commit` for the verified sprint; bare `git commit` is invalid | real commit ID and directive log exist |
+| `sprint-commit` | root invokes `cowork-commit` in sprint-provenance mode, linking the initiative intent and reviewed sprint artifacts; add verbatim dialogue only for real user intervention | real commit ID and sprint provenance exist |
 | `state-checkpoint` | root records the commit with the state helper | revision advanced after commit |
 | `cluster-regression` | root tests the stored-order integrated cluster | adjacent regression green |
 | `full-regression` | root runs the repository-wide suite after all clusters | full suite green |
