@@ -1,0 +1,20 @@
+{
+  "name": "ww-w-ai",
+  "interface": {
+    "displayName": "Ww W Ai"
+  },
+  "plugins": [
+    {
+      "name": "ai-native-cowork",
+      "source": {
+        "source": "local",
+        "path": "./plugins/ai-native-cowork"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}
