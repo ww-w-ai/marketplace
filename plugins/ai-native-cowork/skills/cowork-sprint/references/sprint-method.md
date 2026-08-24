@@ -84,7 +84,8 @@ research → plan-detail → design → do → QA → fix → intent-audit → c
                               (then ONCE after all sprints → doc-sync → [auto-merge, if worktree; §5c])
 ```
 
-- **commit** (per sprint, after its gate is green) is MANDATORY via `/cowork-commit` — never a bare `git commit` (it adds the WHY message + Co-Authored-By + AI directive-log + the mechanical-hygiene subset). Under the global git-safety gate (explicit user request; never push without it).
+- **initiative intent** is captured ONCE after roadmap approval and before autonomous execution. It preserves the user's goal, constraints, decisions, and approved roadmap; every sprint provenance links to it.
+- **commit** (per sprint, after its gate is green) is MANDATORY via `/cowork-commit` in sprint-provenance mode. Its WHY comes from the initiative link plus the sprint's reviewed Brief, Plan, Design, report, and verification evidence. Do not search for or invent per-sprint user dialogue during autonomous execution. Include a verbatim dialogue delta only when the user actually intervened after the previous checkpoint. The global git-safety gate still applies; never push without explicit permission.
 - **doc-sync** runs ONCE after all sprints via `/cowork-doc-sync` — MANDATORY terminal step, not a "later" suggestion. Skipping it = the sprint is not done (docs left stale). Both are detailed in SKILL.md PHASE 1.
 
 **Phase gate (sequential enforcement).** Phase N-1 must be **complete — its observable exit condition met (sign-off / exit predicate green)** — before phase N starts. No skipping ahead on an unfinished phase; an unmet exit condition pauses, it does not pass silently.

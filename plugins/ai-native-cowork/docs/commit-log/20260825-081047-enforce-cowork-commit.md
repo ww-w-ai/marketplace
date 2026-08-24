@@ -1,5 +1,7 @@
 # fix(cowork-sprint): enforce AI-aware sprint commits
 
+> **Correction (2026-08-25):** The conclusion below was too strict. Autonomous `cowork-sprint` commits should not require a new per-sprint user transcript. The initiative conversation belongs in one shared intent log; each sprint records artifact-led decision provenance and only adds verbatim dialogue when the user actually intervened. The earlier seven commits are not defective merely because their autonomous windows lacked user turns, and no transcript backfill is required.
+
 - **Date(KST)**: 2026-08-25 08:10:47
 - **Sessions**: `01a035f8`
 

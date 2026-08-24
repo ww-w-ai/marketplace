@@ -49,7 +49,7 @@ class RuntimeParityTests(unittest.TestCase):
         phrases = (
             "independent roadmap review", "Sprint Brief", "independent Plan review",
             "independent Design review", "Targeted tests", "gap check", "intent audit",
-            "QA diff question", "own commit", "cowork-commit", "bare `git commit`", "checkpoint", "adjacent regression",
+            "QA diff question", "own commit", "initiative's user intent once", "sprint artifacts", "user actually intervened", "checkpoint", "adjacent regression",
             "full regression", "documentation synchronization", "completion report",
             "five fix-and-recheck", "explicit user approval",
         )
@@ -67,8 +67,16 @@ class RuntimeParityTests(unittest.TestCase):
             self.assertIn("cowork-method.md", text)
             self.assertIn("schedule.py", text)
             self.assertIn("state.py", text)
-            self.assertIn("invokes `cowork-commit`", text)
-            self.assertIn("directive log exist", text)
+            self.assertIn("sprint-provenance mode", text)
+            self.assertIn("real user intervention", text)
+            self.assertIn("sprint provenance exist", text)
+
+    def test_sprint_commit_routes_to_artifact_provenance(self):
+        commit_skill = read(ROOT.parent / "cowork-commit" / "SKILL.md")
+        self.assertIn("Sprint provenance mode", commit_skill)
+        self.assertIn("initiative intent", commit_skill)
+        self.assertIn("User Intervention Delta", commit_skill)
+        self.assertTrue((ROOT.parent / "cowork-commit" / "references" / "sprint-provenance-format.md").is_file())
 
     def test_matrix_detects_a_removed_gate(self):
         text = read(RUNTIMES["codex"])

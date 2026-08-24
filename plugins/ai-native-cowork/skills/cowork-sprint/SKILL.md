@@ -54,8 +54,8 @@ Read specialist references only when their trigger applies: `agent-authoring.md`
 
 ## Outputs and boundary
 
-Produce the shared roadmap, reviewed sprint artifacts, targeted and gap evidence, per-sprint commits and checkpoints, final regression, intent audit, documentation sync, completion report, and any required retrospective.
+Produce the shared roadmap, one initiative intent log, reviewed sprint artifacts, targeted and gap evidence, per-sprint provenance commits and checkpoints, final regression, intent audit, documentation sync, completion report, and any required retrospective.
 
 After each sprint gap check, ask exactly: **what is here that no WorkList item asked for?** This is not a separate agent or review phase.
 
-The leader owns decisions, integration, real command evidence, commits, checkpoints, reports, and approval boundaries. Workers never own leadership, durable state, commits, merges, deploys, or completion claims.
+The leader owns decisions, integration, real command evidence, commits, checkpoints, reports, and approval boundaries. Workers never own leadership, durable state, commits, merges, deploys, or completion claims. Initiative dialogue is recorded once before autonomous execution. A sprint provenance log is artifact-led; it includes a verbatim user-dialogue delta only when the user intervened after the previous checkpoint.

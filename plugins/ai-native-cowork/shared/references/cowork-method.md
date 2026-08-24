@@ -49,7 +49,7 @@ Every sprint runs these gates regardless of risk score:
 - WorkList-to-implementation gap check is complete.
 - A fresh-context intent audit confirms the result serves the sprint intent.
 - The QA diff question resolves unrequested work.
-- The sprint has its own commit created through `cowork-commit`; a bare `git commit` does not satisfy this gate because it omits the durable AI decision trail.
+- The sprint has its own commit with durable decision provenance. Record the initiative's user intent once, then link it from each sprint. Autonomous sprints derive their decision trail from reviewed Brief, Plan, Design, report, and verification artifacts; include verbatim conversation only when the user actually intervened during that sprint.
 - The durable checkpoint is updated after the commit.
 
 Every roadmap ends with full regression, final intent review, documentation synchronization, a completion report, and retrospective when the run produced reusable learning or material correction.
@@ -127,7 +127,7 @@ The common outputs are:
 - roadmap and intent anchor;
 - sprint Brief, Plan, Design, and WorkList;
 - targeted verification and gap evidence;
-- one `cowork-commit` commit per sprint;
+- one provenance-bearing commit per sprint, linked to the initiative intent and sprint artifacts;
 - minimal durable checkpoint;
 - final regression, intent, documentation, and completion reports.
 
