@@ -1,0 +1,119 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ai-native-cowork.local/cowork-sprint/status.schema.json",
+  "title": "cowork-sprint durable state",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "revision", "runId", "goal", "roadmapFile", "executionMode", "git", "sprints", "pause", "openDecisions", "updatedAt"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "revision": { "type": "integer", "minimum": 0 },
+    "runId": { "$ref": "#/$defs/nonEmpty" },
+    "goal": { "$ref": "#/$defs/nonEmpty" },
+    "roadmapFile": { "$ref": "#/$defs/relativePath" },
+    "executionMode": { "enum": ["sequential", "mixed", "concurrent"] },
+    "git": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["baseBranch", "worktree", "sprintBranch", "lastCommit"],
+      "properties": {
+        "baseBranch": { "$ref": "#/$defs/nonEmpty" },
+        "worktree": { "$ref": "#/$defs/nonEmpty" },
+        "sprintBranch": { "$ref": "#/$defs/nonEmpty" },
+        "lastCommit": { "anyOf": [{ "$ref": "#/$defs/commit" }, { "type": "null" }] }
+      }
+    },
+    "sprints": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/sprint" }
+    },
+    "clusters": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/cluster" }
+    },
+    "pause": { "anyOf": [{ "$ref": "#/$defs/pause" }, { "type": "null" }] },
+    "openDecisions": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/decision" }
+    },
+    "updatedAt": { "$ref": "#/$defs/dateTime" }
+  },
+  "$defs": {
+    "nonEmpty": { "type": "string", "minLength": 1 },
+    "relativePath": {
+      "type": "string",
+      "minLength": 1,
+      "not": { "pattern": "^(?:/|[A-Za-z]:[\\\\/])" }
+    },
+    "commit": { "type": "string", "pattern": "^[0-9a-fA-F]{7,64}$" },
+    "dateTime": { "type": "string", "format": "date-time" },
+    "risk": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["impact", "recovery", "securityExternal", "contract", "verification", "total"],
+      "properties": {
+        "impact": { "type": "integer", "minimum": 0, "maximum": 2 },
+        "recovery": { "type": "integer", "minimum": 0, "maximum": 2 },
+        "securityExternal": { "type": "integer", "minimum": 0, "maximum": 2 },
+        "contract": { "type": "integer", "minimum": 0, "maximum": 2 },
+        "verification": { "type": "integer", "minimum": 0, "maximum": 2 },
+        "total": { "type": "integer", "minimum": 0, "maximum": 10 }
+      }
+    },
+    "sprint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "deps", "planFile", "risk", "status", "phase", "commit"],
+      "properties": {
+        "id": { "$ref": "#/$defs/nonEmpty" },
+        "deps": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/nonEmpty" } },
+        "owns": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/nonEmpty" } },
+        "planFile": { "$ref": "#/$defs/relativePath" },
+        "risk": { "$ref": "#/$defs/risk" },
+        "status": { "enum": ["pending", "in-progress", "blocked", "failed", "completed", "archived"] },
+        "phase": { "enum": ["pending", "research", "brief", "plan", "plan-review", "design", "design-review", "do", "test", "gap-check", "commit", "done"] },
+        "commit": { "anyOf": [{ "$ref": "#/$defs/commit" }, { "type": "null" }] },
+        "resultFile": { "anyOf": [{ "$ref": "#/$defs/relativePath" }, { "type": "null" }] }
+      }
+    },
+    "cluster": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "mode", "sprintIds", "integrationOrder"],
+      "properties": {
+        "id": { "$ref": "#/$defs/nonEmpty" },
+        "mode": { "enum": ["sequential", "concurrent"] },
+        "sprintIds": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/nonEmpty" } },
+        "integrationOrder": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/nonEmpty" } }
+      }
+    },
+    "pause": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "sprintId", "phase", "detail", "blockedBy", "createdAt"],
+      "properties": {
+        "code": { "enum": ["QUALITY_GATE_FAIL", "ITERATE_EXHAUSTED", "AGENT_EVOLUTION_EXHAUSTED", "BUDGET_TIME_EXCEEDED", "IRREVERSIBLE_ACTION", "MERGE_CONFLICT"] },
+        "sprintId": { "$ref": "#/$defs/nonEmpty" },
+        "phase": { "enum": ["research", "brief", "plan", "plan-review", "design", "design-review", "do", "test", "gap-check", "commit"] },
+        "detail": { "$ref": "#/$defs/nonEmpty" },
+        "blockedBy": { "type": "array", "items": { "$ref": "#/$defs/nonEmpty" } },
+        "createdAt": { "$ref": "#/$defs/dateTime" }
+      }
+    },
+    "decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "sprintId", "question", "chosenDefault", "reason", "status"],
+      "properties": {
+        "id": { "$ref": "#/$defs/nonEmpty" },
+        "sprintId": { "$ref": "#/$defs/nonEmpty" },
+        "question": { "$ref": "#/$defs/nonEmpty" },
+        "chosenDefault": { "$ref": "#/$defs/nonEmpty" },
+        "reason": { "$ref": "#/$defs/nonEmpty" },
+        "status": { "const": "open" }
+      }
+    }
+  }
+}

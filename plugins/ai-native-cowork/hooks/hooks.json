@@ -1,0 +1,15 @@
+{
+  "description": "Agent-first session guidance — prefer purpose-fit agents (discover → scaffold) over general-purpose, so a personal agent legion accumulates over time.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/session-start.sh\""
+          }
+        ]
+      }
+    ]
+  }
+}
