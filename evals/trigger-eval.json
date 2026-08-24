@@ -1,0 +1,22 @@
+[
+  {"query": "I've been working on this feature all week with Claude helping me debug CORS issues and refactor the auth module. Before I merge, I want to document what happened — what prompts I used, what worked, what didn't. Can you generate some kind of summary?", "should_trigger": true},
+  {"query": "show me what I did with Claude this sprint. We had 3 major PRs and I want to share the AI collaboration patterns with my team lead in our 1:1", "should_trigger": true},
+  {"query": "/www-insights --from 2w", "should_trigger": true},
+  {"query": "generate a weekly insights report of my Claude Code sessions so I can paste it into our Notion sprint retro page", "should_trigger": true},
+  {"query": "I need to write my weekly status update and I want to include how I used AI this week. what sessions did I have and what were the key decisions?", "should_trigger": true},
+  {"query": "commit this with a record of what AI helped me do since my last commit, including the key prompts I used", "should_trigger": true},
+  {"query": "이번 주 Claude로 작업한 내역 정리해서 슬랙에 올릴 수 있게 만들어줘", "should_trigger": true},
+  {"query": "before I push this PR, can you attach a summary of the AI collaboration to the commit message? I want the team to see what prompts drove the key decisions", "should_trigger": true},
+  {"query": "www-commit", "should_trigger": true},
+  {"query": "I want to track how my AI usage is evolving over the past month — am I getting better at prompting? what patterns work?", "should_trigger": true},
+  {"query": "can you read the file at /Users/me/project/src/auth.ts and explain what it does?", "should_trigger": false},
+  {"query": "fix the TypeScript compilation error in my project, the build is failing on line 42 of utils.ts", "should_trigger": false},
+  {"query": "write unit tests for the UserService class using jest and mock the database connection", "should_trigger": false},
+  {"query": "I need to set up a new Next.js project with Tailwind CSS and shadcn/ui components. Can you scaffold it?", "should_trigger": false},
+  {"query": "review this pull request and check for security vulnerabilities, especially around the SQL queries in the data layer", "should_trigger": false},
+  {"query": "help me debug why my Docker container keeps restarting — here's the docker-compose.yml and the logs show OOM killed", "should_trigger": false},
+  {"query": "refactor this 500-line function into smaller modules following clean architecture principles", "should_trigger": false},
+  {"query": "create a GitHub Actions workflow that runs tests on PR, deploys to staging on merge to develop, and deploys to prod on release tags", "should_trigger": false},
+  {"query": "what's the difference between useMemo and useCallback in React? when should I use each one?", "should_trigger": false},
+  {"query": "I accidentally force pushed to main and lost 3 commits. How do I recover them from the reflog?", "should_trigger": false}
+]

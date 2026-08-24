@@ -1,0 +1,87 @@
+{
+  "version": "0.1",
+  "_provenance": "Gate mechanism (routing + balanced-JSON parse + threshold contract) adapted from bkit (popup-studio-ai/bkit-claude-code, Apache-2.0) lib/application/quality-gates/measure-router.js + bkit.config.json. Adapted for cowork: deterministic gates run directly (no agent), thresholds resolve project-override > this catalog > fallback. See NOTICE.",
+  "thresholdResolutionOrder": [
+    "project override (repo CLAUDE.md '## cowork-gates' or <repo>/.cowork-gates.json)",
+    "this catalog default",
+    "hardcoded fallback in gate-lib.mjs"
+  ],
+  "gates": {
+    "G-BUILD": {
+      "metric": "buildTestPassRate",
+      "valueShape": "percent",
+      "threshold": 100,
+      "higherIsBetter": true,
+      "mode": "deterministic",
+      "commands": [
+        { "cmd": "npx tsc --noEmit", "success": "exitZero", "label": "backend tsc" },
+        { "cmd": "npm test", "success": "exitZero", "label": "test suite" }
+      ],
+      "when": "every slice complete + before deploy (always)",
+      "note": "value=100 only if ALL commands succeed; any non-zero exit → 0. Override commands per repo (e.g. web tsc+build, custom runner)."
+    },
+    "G-CONTRACT": {
+      "metric": "contractDriftCount",
+      "valueShape": "count",
+      "threshold": 0,
+      "higherIsBetter": false,
+      "mode": "agent",
+      "agent": "gap-detector",
+      "sourceArtifact": "advertised contract surfaces mutual consistency (e.g. inputSchema <-> validate <-> outputSchema <-> guide text <-> consumers). Report count of surfaces that disagree.",
+      "when": "any contract change (schema, signature, MCP tool, CLI flag, error/message)"
+    },
+    "G-MATCH": {
+      "metric": "matchRate",
+      "valueShape": "percent",
+      "threshold": 90,
+      "higherIsBetter": true,
+      "mode": "agent",
+      "agent": "gap-detector",
+      "sourceArtifact": "design/spec declared WorkList items vs actual shipped implementation (read logic, not grep — catch stubs/placeholders)",
+      "when": "spec-driven implementation verification"
+    },
+    "G-CRIT": {
+      "metric": "criticalIssueCount",
+      "valueShape": "count",
+      "threshold": 0,
+      "higherIsBetter": false,
+      "mode": "agent",
+      "agent": "code-analyzer",
+      "sourceArtifact": "adversarial multi-lens review (correctness + dominant-risk lens: security/concurrency/data-integrity). Report count of HIGH-CONFIDENCE Critical findings only.",
+      "when": "before any irreversible/production action (deploy, migration, mass-delete)"
+    },
+    "G-MIGRATE": {
+      "metric": "destructiveStatementCount",
+      "valueShape": "count",
+      "threshold": 0,
+      "higherIsBetter": false,
+      "mode": "deterministic",
+      "commands": [
+        { "cmd": "git diff --cached -- '*migration*' '*migrations*' | grep -iE '^\\+.*(drop table|drop column|truncate|delete from|alter table.*drop|alter column.*type|rename)' | grep -viv '__test_' | wc -l | tr -d ' '", "success": "stdoutNumber", "label": "destructive keyword scan (staged)" }
+      ],
+      "when": "DB migration / db push (pairs with manual before/after row-count review)",
+      "note": "grep is the deterministic half; the human before/after count review still applies (migration-safety-review rule)."
+    },
+    "G-INTENT": {
+      "metric": "intentFitPass",
+      "valueShape": "percent",
+      "threshold": 100,
+      "higherIsBetter": true,
+      "mode": "agent",
+      "agent": "cowork-intent-auditor",
+      "sourceArtifact": "did the execution serve the INTENT behind the plan (not merely literal compliance)? Return 100 if PASS, 0 if intent-drift/false-completion found.",
+      "when": "after QA gate passes, before deploy/deliver"
+    },
+    "G-DOCSYNC": {
+      "metric": "docsCodeDriftCount",
+      "valueShape": "count",
+      "threshold": 0,
+      "higherIsBetter": false,
+      "mode": "skill",
+      "skill": "cowork-doc-sync",
+      "sourceArtifact": "docs (LIVING authority + status-claim labels) vs current code/deploy state",
+      "when": "after deploy (closing step)",
+      "note": "skill-backed: run /cowork-doc-sync; drift count = surfaces it had to update."
+    }
+  }
+}
