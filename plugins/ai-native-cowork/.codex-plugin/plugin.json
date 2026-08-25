@@ -1,11 +1,19 @@
 {
   "name": "ai-native-cowork",
-  "version": "1.18.1",
+  "version": "1.18.2",
   "description": "A dual-host collaboration harness for sprint delivery, PDCA, session insights, AI-aware commits, and documentation workflows.",
-  "author": { "name": "ww-w-ai" },
+  "author": {
+    "name": "ww-w-ai"
+  },
   "repository": "https://github.com/ww-w-ai/ai-native-cowork",
   "license": "MIT",
-  "keywords": ["cowork", "sprint", "pdca", "session-insights", "documentation"],
+  "keywords": [
+    "cowork",
+    "sprint",
+    "pdca",
+    "session-insights",
+    "documentation"
+  ],
   "skills": "./skills/",
   "interface": {
     "displayName": "AI Native Cowork",
@@ -13,7 +21,14 @@
     "longDescription": "Six shared skills for Claude Code and Codex: sprint orchestration, single-feature PDCA, session insights, AI-aware commits, and documentation setup and synchronization.",
     "developerName": "ww-w-ai",
     "category": "Productivity",
-    "capabilities": ["Interactive", "Write"],
-    "defaultPrompt": ["Plan and execute this work in reviewed sprints.", "Build this feature through PDCA.", "Summarize my recent AI work sessions."]
+    "capabilities": [
+      "Interactive",
+      "Write"
+    ],
+    "defaultPrompt": [
+      "Plan and execute this work in reviewed sprints.",
+      "Build this feature through PDCA.",
+      "Summarize my recent AI work sessions."
+    ]
   }
 }

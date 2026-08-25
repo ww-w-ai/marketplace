@@ -105,7 +105,7 @@
     {
       "name": "ai-native-cowork",
       "description": "Dual-host work-collaboration harness for Claude Code and Codex. Six shared skills provide reviewed sprint delivery, single-feature PDCA, cross-host session insights, AI-aware commits, and documentation workflows with host-native execution.",
-      "version": "1.18.1",
+      "version": "1.18.2",
       "source": {
         "source": "url",
         "url": "https://github.com/ww-w-ai/ai-native-cowork.git"

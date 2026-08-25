@@ -1,10 +1,30 @@
 {
   "name": "ai-native-cowork",
-  "version": "1.18.1",
+  "version": "1.18.2",
   "description": "Work-collaboration harness for Claude Code and Codex: reviewed sprint delivery, single-feature PDCA, session insights, AI-aware commits, and documentation workflows.",
   "author": {
     "name": "ww-w-ai"
   },
   "license": "MIT",
-  "keywords": ["cowork-sprint", "cowork-insights", "cowork-commit", "cowork-doc-sync", "cowork-doc-init", "pdca-wf", "cowork", "ai-collaboration", "sprint", "agent-orchestration", "pdca", "workflow-execution", "session-report", "commit-history", "directive-log", "doc-organization", "documentation-sync", "agent-legion", "session-hook"]
+  "keywords": [
+    "cowork-sprint",
+    "cowork-insights",
+    "cowork-commit",
+    "cowork-doc-sync",
+    "cowork-doc-init",
+    "pdca-wf",
+    "cowork",
+    "ai-collaboration",
+    "sprint",
+    "agent-orchestration",
+    "pdca",
+    "workflow-execution",
+    "session-report",
+    "commit-history",
+    "directive-log",
+    "doc-organization",
+    "documentation-sync",
+    "agent-legion",
+    "session-hook"
+  ]
 }

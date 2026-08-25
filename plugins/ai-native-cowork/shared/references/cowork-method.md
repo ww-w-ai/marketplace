@@ -58,7 +58,7 @@ Tests do not replace the gap check. Tests ask whether implemented behavior works
 
 ## Convergence and failure direction
 
-Check/Act is bounded to five fix-and-recheck iterations. Each iteration records real command exit codes, WorkList coverage, current gaps, and the affected re-review lenses. Engineering work reaches Done only at complete WorkList coverage with no blocker or major gap and green applicable checks. Non-code work uses its reviewed verifiable predicate.
+Check/Act is bounded to five fix-and-recheck iterations. Each iteration records real command exit codes, WorkList coverage, current gaps, and the affected re-review lenses. Engineering work reaches Done only at complete WorkList coverage with no blocker or major gap, green applicable checks, and a recorded `qa-diff` verdict. An unrun `qa-diff` is not Done: gap analysis compares declared against implemented, so it sees only what is missing — work added beyond the WorkList sits on neither side of that comparison and passes untouched, which is why complete coverage and bloated code coexist without contradiction. Non-code work uses its reviewed verifiable predicate.
 
 Mechanical failure stays within the reviewed Design. A false premise returns only the affected slice to Plan or Design and re-runs invalidated lenses. Work outside Success becomes an explicit carry item. Exhausted iterations, unresolved quality failure, unsafe irreversible action, or merge conflict pauses truthfully; none may be relabeled Done.
 
@@ -110,7 +110,7 @@ After targeted tests and the WorkList gap check, inspect the sprint diff once an
 
 > What is present that no WorkList item requested?
 
-Cut speculative generality and gold plating when a smaller implementation satisfies the reviewed Design. Keep contracts, boundaries, security controls, failure direction, and concise extensibility that the Design explicitly justifies. Record material cuts or one-line keep reasons in the sprint report. This is a concise QA question, not a separate mandatory agent or an additional review phase.
+Cut speculative generality and gold plating when a smaller implementation satisfies the reviewed Design. Keep contracts, boundaries, security controls, failure direction, and concise extensibility that the Design explicitly justifies. Record material cuts or one-line keep reasons in the sprint report. The recorded verdict is part of the Done predicate, so an unrun question is not Done. Judge each item by asking what breaks if it is deleted; when nothing breaks and the only defence is a future need, that is the cut. The recurring shapes are an interface with one implementation, a mapping layer that translates a type into itself, an option or config key with no call site, a registry standing over two cases, a helper generalised for a single use, an unused type parameter, and defensive code for failures the call contract already prevents. This is a concise QA question, not a separate mandatory agent or an additional review phase.
 
 ## Execution and safety
 
