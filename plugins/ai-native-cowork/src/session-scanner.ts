@@ -319,17 +319,23 @@ export async function scanSessionFiles(
         try { fileStat = await stat(filePath) } catch { continue }
         if (fileStat.mtimeMs < fromMs || fileStat.mtimeMs > toMs) continue
         let cwd = ''
+        let isSubagentRollout = false
         try {
           const rl = createInterface({ input: createReadStream(filePath, { encoding: 'utf-8' }), crlfDelay: Infinity })
           for await (const line of rl) {
             try {
               const row = JSON.parse(line)
-              if (row.type === 'session_meta') { cwd = row.payload?.cwd ?? ''; break }
+              if (row.type === 'session_meta') {
+                cwd = row.payload?.cwd ?? ''
+                isSubagentRollout = row.payload?.thread_source === 'subagent' || !!row.payload?.source?.subagent?.thread_spawn
+                break
+              }
             } catch { /* malformed row */ }
           }
           rl.close()
         } catch { continue }
         if (!cwd) continue
+        if (isSubagentRollout && !options?.includeSubagents) continue
         const hash = pathToProjectHash(cwd)
         if (isExcluded(hash, excludeHashes)) continue
         const matches = multiPathHashes ? matchesMultiPath(hash, multiPathHashes) : matchesScope(hash, baseHash, scope)

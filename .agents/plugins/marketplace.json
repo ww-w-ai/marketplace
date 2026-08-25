@@ -17,10 +17,10 @@
       "category": "Productivity"
     },
     {
-      "name": "claude-code-token-saver",
+      "name": "super-token-saver",
       "source": {
         "source": "local",
-        "path": "./plugins/claude-code-token-saver"
+        "path": "./plugins/super-token-saver"
       },
       "policy": {
         "installation": "AVAILABLE",
