@@ -1,139 +1,139 @@
 {
- "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
- "name": "ww-w-ai",
- "owner": {
-  "name": "ww-w-ai"
- },
- "metadata": {
-  "description": "Claude Code plugins by ww-w-ai"
- },
- "plugins": [
-  {
-   "name": "claude-code-token-saver",
-   "description": "45% cost reduction measured. Cache expiry prevention, SubTask auto-delegation, zero-cost context restoration, real-time cost dashboard. The only Claude Code plugin built from CC source analysis.",
-   "version": "2.4.1",
-   "source": {
-    "source": "url",
-    "url": "https://github.com/ww-w-ai/claude-code-token-saver.git"
-   },
-   "author": {
-    "name": "taekim34"
-   },
-   "license": "Apache-2.0",
-   "keywords": [
-    "claude-code",
-    "cost-reduction",
-    "token-optimization",
-    "cache-management",
-    "rate-limit",
-    "usage-dashboard",
-    "context-management",
-    "api-cost",
-    "billing",
-    "analytics",
-    "subtask",
-    "session-management",
-    "prompt-cache",
-    "anthropic-api",
-    "cost-tracking",
-    "token-saver",
-    "context-restore",
-    "max-plan",
-    "pay-per-use",
-    "cc-continue",
-    "cc-compact",
-    "session-handoff"
-   ]
-  },
-  {
-   "name": "dari-standards",
-   "description": "CC standards framework. Discovery skill with research methodology rules.",
-   "version": "0.1.0",
-   "source": {
-    "source": "url",
-    "url": "https://github.com/ww-w-ai/dari-standards.git"
-   },
-   "author": {
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "ww-w-ai",
+  "owner": {
     "name": "ww-w-ai"
-   },
-   "license": "Apache-2.0",
-   "keywords": [
-    "standards",
-    "discovery",
-    "research"
-   ]
   },
-  {
-   "name": "dari-devtools",
-   "description": "Plan-based autonomous PDCA execution orchestrator.",
-   "version": "0.1.0",
-   "source": {
-    "source": "url",
-    "url": "https://github.com/ww-w-ai/dari-devtools.git"
-   },
-   "author": {
-    "name": "ww-w-ai"
-   },
-   "license": "Apache-2.0",
-   "keywords": [
-    "devtools",
-    "bypass-pdca",
-    "orchestrator"
-   ]
+  "metadata": {
+    "description": "Claude Code plugins by ww-w-ai"
   },
-  {
-   "name": "devmd",
-   "description": "25 markdown spec files that define your entire software project. Scan codebases, verify against source, generate specs.",
-   "version": "0.1.0",
-   "source": {
-    "source": "url",
-    "url": "https://github.com/ww-w-ai/devmd.git"
-   },
-   "author": {
-    "name": "ww-w-ai"
-   },
-   "license": "MIT",
-   "keywords": [
-    "devmd",
-    "spec",
-    "markdown",
-    "documentation",
-    "scan",
-    "gap-analysis"
-   ]
-  },
-  {
-   "name": "ai-native-cowork",
-   "description": "Dual-host work-collaboration harness for Claude Code and Codex. Six shared skills provide reviewed sprint delivery, single-feature PDCA, cross-host session insights, AI-aware commits, and documentation workflows with host-native execution.",
-   "version": "1.18.1",
-   "source": {
-    "source": "url",
-    "url": "https://github.com/ww-w-ai/ai-native-cowork.git"
-   },
-   "author": {
-    "name": "ww-w-ai"
-   },
-   "license": "MIT",
-   "keywords": [
-    "cowork-sprint",
-    "pdca-wf",
-    "cowork-insights",
-    "cowork-commit",
-    "cowork-doc-sync",
-    "cowork-doc-init",
-    "cowork",
-    "pdca",
-    "workflow-execution",
-    "ai-collaboration",
-    "sprint",
-    "agent-orchestration",
-    "agent-legion",
-    "session-report",
-    "commit-history",
-    "directive-log",
-    "doc-organization",
-    "documentation-sync"
-   ]
-  }
- ]
+  "plugins": [
+    {
+      "name": "claude-code-token-saver",
+      "description": "45% cost reduction measured. Cache expiry prevention, SubTask auto-delegation, zero-cost context restoration, real-time cost dashboard. The only Claude Code plugin built from CC source analysis. Restores Codex sessions too.",
+      "version": "2.5.0",
+      "source": {
+        "source": "url",
+        "url": "https://github.com/ww-w-ai/claude-code-token-saver.git"
+      },
+      "author": {
+        "name": "taekim34"
+      },
+      "license": "Apache-2.0",
+      "keywords": [
+        "claude-code",
+        "cost-reduction",
+        "token-optimization",
+        "cache-management",
+        "rate-limit",
+        "usage-dashboard",
+        "context-management",
+        "api-cost",
+        "billing",
+        "analytics",
+        "subtask",
+        "session-management",
+        "prompt-cache",
+        "anthropic-api",
+        "cost-tracking",
+        "token-saver",
+        "context-restore",
+        "max-plan",
+        "pay-per-use",
+        "cc-continue",
+        "cc-compact",
+        "session-handoff"
+      ]
+    },
+    {
+      "name": "dari-standards",
+      "description": "CC standards framework. Discovery skill with research methodology rules.",
+      "version": "0.1.0",
+      "source": {
+        "source": "url",
+        "url": "https://github.com/ww-w-ai/dari-standards.git"
+      },
+      "author": {
+        "name": "ww-w-ai"
+      },
+      "license": "Apache-2.0",
+      "keywords": [
+        "standards",
+        "discovery",
+        "research"
+      ]
+    },
+    {
+      "name": "dari-devtools",
+      "description": "Plan-based autonomous PDCA execution orchestrator.",
+      "version": "0.1.0",
+      "source": {
+        "source": "url",
+        "url": "https://github.com/ww-w-ai/dari-devtools.git"
+      },
+      "author": {
+        "name": "ww-w-ai"
+      },
+      "license": "Apache-2.0",
+      "keywords": [
+        "devtools",
+        "bypass-pdca",
+        "orchestrator"
+      ]
+    },
+    {
+      "name": "devmd",
+      "description": "25 markdown spec files that define your entire software project. Scan codebases, verify against source, generate specs.",
+      "version": "0.1.0",
+      "source": {
+        "source": "url",
+        "url": "https://github.com/ww-w-ai/devmd.git"
+      },
+      "author": {
+        "name": "ww-w-ai"
+      },
+      "license": "MIT",
+      "keywords": [
+        "devmd",
+        "spec",
+        "markdown",
+        "documentation",
+        "scan",
+        "gap-analysis"
+      ]
+    },
+    {
+      "name": "ai-native-cowork",
+      "description": "Dual-host work-collaboration harness for Claude Code and Codex. Six shared skills provide reviewed sprint delivery, single-feature PDCA, cross-host session insights, AI-aware commits, and documentation workflows with host-native execution.",
+      "version": "1.18.1",
+      "source": {
+        "source": "url",
+        "url": "https://github.com/ww-w-ai/ai-native-cowork.git"
+      },
+      "author": {
+        "name": "ww-w-ai"
+      },
+      "license": "MIT",
+      "keywords": [
+        "cowork-sprint",
+        "pdca-wf",
+        "cowork-insights",
+        "cowork-commit",
+        "cowork-doc-sync",
+        "cowork-doc-init",
+        "cowork",
+        "pdca",
+        "workflow-execution",
+        "ai-collaboration",
+        "sprint",
+        "agent-orchestration",
+        "agent-legion",
+        "session-report",
+        "commit-history",
+        "directive-log",
+        "doc-organization",
+        "documentation-sync"
+      ]
+    }
+  ]
 }

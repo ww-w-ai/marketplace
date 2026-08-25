@@ -1,0 +1,36 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/cache-expiry-check.sh",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/statusline-version-check.sh",
+            "timeout": 3
+          },
+          {
+            "type": "command",
+            "command": "sed \"s|__PLUGIN_ROOT__|${CLAUDE_PLUGIN_ROOT}|g\" ${CLAUDE_PLUGIN_ROOT}/hooks/session-architecture.md",
+            "timeout": 5
+          },
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/git-context-lite.sh",
+            "timeout": 3
+          }
+        ]
+      }
+    ]
+  }
+}

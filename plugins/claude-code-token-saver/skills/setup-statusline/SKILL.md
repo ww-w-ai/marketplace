@@ -2,7 +2,10 @@
 name: setup-statusline
 description: 'Live token counter in your CLI. Shows real-time input/output/cache token counts in the Claude Code status bar'
 when_to_use: Use when user wants to install, uninstall, or configure the token-saver statusline. Triggers on "setup statusline", "install statusline", "statusline install".
+host: claude-code
 ---
+
+> Claude Code only. Codex has its OWN status line, configured through `status_line` in `config.toml` from a fixed set of named segments rather than a command — see `docs/CODEX-PORT-BACKLOG.md`.
 
 Manage the claude-code-token-saver statusline in Claude Code's `~/.claude/settings.json`.
 
@@ -91,7 +94,7 @@ Do not modify any settings. Just display the help text and stop.
                         The turn cost accumulates across follow-up tool calls so a $1.43 warning
                         stays visible until you start a new prompt. A new turn is detected when
                         no API call happens for 60 seconds (tunable via
-                        `CC_TOKEN_SAVER_TURN_IDLE_SEC`). Resets when you exit and restart claude.
+                        `CC_UPGRADER_TURN_IDLE_SEC`). Resets when you exit and restart claude.
    - [5H]  9% ⏳1h32m — Anthropic 5-hour rate limit usage (subscribers only).
                         ⏳ shows time until the window resets.
    - [W]   65% ⏳1d3h — 7-day weekly rate limit. Only shown when ≥60%.
