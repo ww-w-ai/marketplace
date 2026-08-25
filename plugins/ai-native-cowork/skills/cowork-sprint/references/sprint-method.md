@@ -74,6 +74,25 @@ Output of PHASE 0: a roadmap (sprint list + order + parallelism + assigned agent
 - Hybrid: while delegating autonomously, if a "structured bulk parallel" chunk appears, the **Leader** designs a Workflow for just that chunk (no sub-leader improvises one).
 - **An objective gate upgrades DIRECT → DELEGATE.** When a trustworthy objective gate (test / parity harness) exists, otherwise-DIRECT judgment-heavy work becomes safely delegatable — the gate externalizes the judgment, so a judgment-light worker can "iterate until green." **Build the gate first, then delegate against it.** sooji's S1 (1337-line LIVE Hono port) was DIRECT-inline territory until a 17/17 parity harness objectified correctness — then it delegated safely. ⚠️ Only as safe as the gate is *complete*: a happy-path-only gate (see `references/refactoring.md` → rare-branch false-green) + aggressive delegation = regressions slip through. Make the gate exercise rare branches before delegating against it.
 
+## 4A. Agent discovery and mid-cycle evolution
+
+Discovery is plugin-agnostic. Any installed plugin's agents are just sources in the pool alongside
+project-local and user-global ones; reuse them like any other, and their absence changes nothing
+about the discovery order. Reuse an existing agent when one already covers the role; scaffold a new
+project-local one only when the role is missing from every source AND is a distinct, recurring
+responsibility this sprint actually needs.
+
+This plugin ships exactly one fixed agent, `cowork-intent-auditor`, found by that same discovery and
+used at the intent-audit gate. It is not rewritten by a run.
+
+Mid-cycle, an owned scaffolded agent is rewritten ONLY when it is blocking a gate — its output keeps
+failing the exit predicate so the sprint cannot proceed — and only when the gap is a definition
+defect that would recur: a vague role, a missing constraint, a loose output format, an over-broad
+scope. Fix exactly that. Stay under the size cap by compaction, never accretion; if a role keeps
+failing, split it rather than growing it. Two unblock rounds per agent per sprint, then pause. Every
+non-blocking improvement waits for the retrospective — a run that keeps polishing its own workers
+never finishes. Never rewrite a borrowed plugin agent, a user-global agent, or a fixed shipped one.
+
 ## 5. Sprint cycle & gates
 
 Each sprint runs a full cycle. The phase names are internal stages (never user sub-commands):

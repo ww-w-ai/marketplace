@@ -13,6 +13,7 @@ Read [`cowork-method.md`](cowork-method.md) first. This file maps its shared res
 | Durable cross-session state | repository `status.json` managed by the state helper |
 | Project instructions | `AGENTS.md` |
 | Session recovery | Codex rollout or compact handoff, used only as recovery evidence |
+| Recovery after a compaction | the root agent invokes `/s-continue` itself — Codex has no hook that can inject context, so this step is explicit and must not be skipped |
 
 Use the root agent as the orchestrator. Keep the Goal aligned with the roadmap outcome and use `update_plan` only for current progress. Neither is the cross-host state authority.
 
@@ -21,5 +22,11 @@ For each delegated task, select a reusable agent type and append the shared role
 Run independent Plan and Design reviews in fresh agent contexts. After a blocking finding is fixed, re-run only the affected lens. Do not ask reviewers to add future features that are outside the current success criteria.
 
 Write durable lifecycle changes through the shared state helper. On resume, validate the repository, worktree, branch, commit, and state revision before continuing. Treat rollout data as recovery material rather than the state authority.
+
+When a thread compacts mid-run, the root agent's first action afterwards is `/s-continue`, which
+rebuilds the pre-compact turns from the rollout and also loads any `/s-compact` handoff for this
+project. Nothing in Codex does this automatically, so an autonomous run that skips it continues on a
+summary and re-derives work it already has. Re-read `status.json` in the same breath: the summary is
+not the authority for which cluster or phase the run was in.
 
 Keep approval, merge, and final completion decisions in the root agent. Collaboration agents supply evidence and owned changes; they do not become nested leaders.

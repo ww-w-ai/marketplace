@@ -87,6 +87,10 @@ Decide   adjust-in-plan | re-plan slice | defer | escalate
 Act      do it, log what changed and why
 ```
 
+**Orient decides everything.** Observe and Act are cheap; the loop's whole value is whether the
+interpretation gets updated when the evidence stops matching the plan. A run that keeps its original
+orientation and simply moves faster is not iterating, it is committing harder.
+
 **Orient is where autonomous runs go wrong** — the usual failure is observing a surprise and
 executing the existing plan harder. If an observation contradicts a premise the R panel accepted,
 the premise loses.

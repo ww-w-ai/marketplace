@@ -5,3 +5,4 @@ node_modules/
 recap-commit-workspace/
 docs/.doc-sync-state.json
 .ww-w-ai/
+__pycache__/

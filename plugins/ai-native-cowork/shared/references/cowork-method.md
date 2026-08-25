@@ -60,6 +60,14 @@ Tests do not replace the gap check. Tests ask whether implemented behavior works
 
 Check/Act is bounded to five fix-and-recheck iterations. Each iteration records real command exit codes, WorkList coverage, current gaps, and the affected re-review lenses. Engineering work reaches Done only at complete WorkList coverage with no blocker or major gap, green applicable checks, and a recorded `qa-diff` verdict. An unrun `qa-diff` is not Done: gap analysis compares declared against implemented, so it sees only what is missing — work added beyond the WorkList sits on neither side of that comparison and passes untouched, which is why complete coverage and bloated code coexist without contradiction. Non-code work uses its reviewed verifiable predicate.
 
+A pause has a name, because an unnamed stop is indistinguishable from a run that quietly gave up.
+Use these: `QUALITY_GATE_FAIL` when the gate is not green; `ITERATE_EXHAUSTED` when the bounded
+Check/Act rounds are spent and the predicate still does not hold; `IRREVERSIBLE_ACTION` when the next
+step deploys, migrates a remote, pushes, or deletes at scale; `MERGE_CONFLICT` when an integration
+cannot proceed without judgment. A local merge is not in this list — it is revertible, so it does not
+pause. On resume, re-evaluate the pause reason BEFORE continuing: if it still holds, stop and report
+again rather than looping back into the same wall.
+
 Mechanical failure stays within the reviewed Design. A false premise returns only the affected slice to Plan or Design and re-runs invalidated lenses. Work outside Success becomes an explicit carry item. Exhausted iterations, unresolved quality failure, unsafe irreversible action, or merge conflict pauses truthfully; none may be relabeled Done.
 
 ## Intent, documentation, and close
@@ -67,6 +75,19 @@ Mechanical failure stays within the reviewed Design. A false premise returns onl
 The executor cannot perform the independent intent audit. Give a fresh reviewer the intent anchor, artifacts, and gap result. A REVISE verdict returns to bounded Check/Act.
 
 Every roadmap closes with integrated full regression, final intent review, documentation synchronization, a completion report, and a retrospective when the run produced reusable learning or material correction. If the run created an isolated worktree and the target worktree is safe to update, a verified local merge may follow; conflicts stop, and remote push always requires explicit approval.
+
+The order of those closing steps is fixed and each one is performed, not proposed. Documentation
+synchronization runs; ending at the report and suggesting a sync as a next step leaves the docs stale
+and is the failure this step exists to prevent. The local merge follows verification automatically —
+verification passing is what authorizes it, so it does not wait for an approval pause — and the
+retrospective runs after the merge, as the true terminal step.
+
+A retrospective's centre of gravity is self-evolution, not a second summary. The completion report
+already carries results, the QA table and pending gates; repeating them here wastes the one pass that
+could improve how the next run behaves. It asks what the roadmap taught that should change a rule, a
+role, a template or a gate, and it writes those proposals down. Its outputs stay inside the
+repository: this method ships to people whose machines hold no personal memory system, so a
+retrospective never writes to a user's private memory directory or personal rule files.
 
 Roadmap Done requires every sprint completed with its own commit and checkpoint, final regression green, intent audit PASS, documentation synchronized, and no unresolved blocker or major gap. A report, test count, or state label cannot substitute for this predicate.
 
@@ -114,11 +135,45 @@ Cut speculative generality and gold plating when a smaller implementation satisf
 
 ## Execution and safety
 
+A roadmap runs autonomously to completion. Do not stop between sprints, between units, or after a
+gate to report progress or to ask something that is not blocking. The run assumes the user is away,
+so a question raised mid-run reaches nobody and stops the work until they return.
+
+A decision that arises mid-run routes by risk, and none of the three routes interrupts the flow:
+
+1. Low-risk or easily reversible — decide, log it, continue.
+2. One option is clearly dominant — decide, log the reason in one line, continue.
+3. Genuinely ambiguous, or important but still reversible — do NOT pause. Take the most reasonable
+   default, or skip that sub-part, record it as an unresolved decision in the state file, and present
+   the accumulated batch once in the final report for review or override.
+
+Everything needing the user is batched at the roadmap approval gate, before execution begins. The
+only mid-run hard stops are irreversible or outward actions — deploy, remote migration, push, mass
+delete, release. The distinction matters and is easy to blur: decision ambiguity defers to the
+end-of-run batch and the work keeps moving, while irreversible execution gates in place. One is a
+question, the other is safety.
+
+A compaction during an autonomous run is a context-loss event, not a checkpoint. What the summary
+keeps is a paraphrase; what it drops is the measured numbers, the file and line anchors, and the
+reasons a decision went the way it did — exactly the material a run needs to avoid re-deriving work
+it already finished. So after any compaction, restore the pre-compact turns before continuing, and
+re-read the durable state file rather than trusting the summary for where the run stood. The state
+file, not the summary, is the authority. Each host maps this its own way; see its runtime reference.
+
+Emit a progress line at each gate or phase transition, and at least every few minutes of wall-clock
+work: which sprint and phase, what is running now, and what follows — one line in the shape
+`[sprint-id phase] doing X — next Y`. No detail dumps, no questions. A long silence
+reads as a hung run and gets a healthy one interrupted; the line is cheaper than the restart.
+
 Use OODA inside Do and Check when evidence contradicts a reviewed premise. Re-plan only the affected slice and re-run only the review lenses invalidated by the change. New work outside the sprint's success criteria becomes a follow-up instead of silently widening scope.
 
 Quality failures loop within the bounded Check/Act policy. External mutations, destructive actions, release operations, and other irreversible steps stop at an approval boundary. A high quality score cannot authorize a safety-sensitive action.
 
 ## Durable outputs
+
+Templated outputs are filled, never restructured. A report or retrospective template names the
+sections a reader will look for; renaming or inventing sections makes two runs incomparable and
+quietly drops whatever the missing section was there to force.
 
 The shared state file stores resume facts, not reports. Detailed research, review findings, QA tables, and resolved decisions belong in plan or report artifacts. Source control remains authoritative for code and commits.
 

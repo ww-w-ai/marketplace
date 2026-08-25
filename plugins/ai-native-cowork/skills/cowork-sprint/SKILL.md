@@ -10,7 +10,7 @@ Deliver one multi-feature roadmap through the same observable contract on Claude
 
 ## Required method
 
-Read [`../../shared/references/cowork-method.md`](../../shared/references/cowork-method.md) completely. It owns roadmap planning, sprint phases, core and risk gates, cluster rules, bounded convergence, safety, outputs, and Done.
+Read [`../../shared/references/cowork-method.md`](../../shared/references/cowork-method.md) completely. It owns roadmap planning, sprint phases, core and risk gates, cluster rules, bounded convergence, the autonomous run-to-completion contract, safety, outputs, and Done.
 
 Then select the runtime from available capabilities:
 
@@ -26,7 +26,18 @@ both capability sets
 
 neither capability set
   -> stop: unsupported host
+
+part of a set only (e.g. Workflow present, TodoWrite absent)
+  -> use that host's reference, and SAY SO: name the missing mechanism and what replaces it
+     before the first dispatch. Never substitute silently.
 ```
+
+A host reference maps responsibilities to mechanisms; it does not promise every mechanism exists in
+every session. When one is missing or is disallowed by the session's own instructions, the
+responsibility does not disappear with it — it is carried by whatever remains, and the substitution
+is stated once, up front, and recorded in the sprint report. A run that quietly drops to a different
+mechanism looks identical in the report to a run that used the mapped one, which is how a capability
+gap becomes invisible.
 
 Do not ask the user to choose a host. Host references map mechanisms only; they cannot waive or redefine the shared contract.
 
