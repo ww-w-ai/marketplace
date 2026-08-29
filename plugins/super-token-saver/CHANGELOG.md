@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.2] - 2026-08-30
+
+### Fixed: Codex no longer runs Claude Code-only hooks
+
+Codex now loads a host-specific hook registry and session architecture. The cache-expiry,
+statusline-version, and git-context hooks remain available to Claude Code but are no longer run by
+Codex. The shared post-compaction restoration hook remains enabled on both hosts.
+
 ## [3.1.1] - 2026-08-30
 
 ### Fixed: Codex loads the hook configuration file instead of its directory
