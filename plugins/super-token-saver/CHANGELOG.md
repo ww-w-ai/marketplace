@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.3] - 2026-08-30
+
+### Fixed: `/s-continue` no longer hides fresh Codex sessions on cache-write failure
+
+Codex session normalization now fails closed when its cache cannot be written. Previously,
+`list-sessions.js` silently skipped every affected session and could present an older session as
+the latest one. The visible error lets Codex request the required filesystem approval and retry
+without returning a misleading partial list.
+
 ## [3.1.2] - 2026-08-30
 
 ### Fixed: Codex no longer runs Claude Code-only hooks
