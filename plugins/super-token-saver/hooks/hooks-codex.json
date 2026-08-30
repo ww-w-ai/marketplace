@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "sed \"s|__PLUGIN_ROOT__|${CLAUDE_PLUGIN_ROOT}|g\" \"${CLAUDE_PLUGIN_ROOT}/hooks/session-architecture-codex.md\"",
+            "command": "sed \"s|__PLUGIN_ROOT__|${CLAUDE_PLUGIN_ROOT}|g\" \"${CLAUDE_PLUGIN_ROOT}/hooks/session-architecture-codex.md\" 2>/dev/null || true",
             "timeout": 5
           }
         ]
@@ -15,7 +15,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/s-continue-after-compact.sh\"",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/s-continue-after-compact.sh\" 2>/dev/null || true",
             "timeout": 10
           }
         ]

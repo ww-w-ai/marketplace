@@ -5,6 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.6] - 2026-08-30
+
+### Fixed: release verification tolerates transient local process load
+
+The Codex hook parity probe now allows 30 seconds for a subprocess that normally completes in a
+fraction of a second. This avoids a false release failure observed once in the exact vendored copy
+while preserving the same assertions and production hook timeouts.
+
+## [3.1.5] - 2026-08-30
+
+### Fixed: the source release now contains its declared Codex hook registry
+
+The Codex manifest had pointed to `hooks/hooks-codex.json`, while the host-specific registry and
+its architecture prompt existed only in the marketplace's vendored snapshot. Both files and their
+parity gates now live in the source of truth. Codex SessionStart commands also use the same
+fail-open boundary as Claude Code, including after compaction.
+
+## [3.1.4] - 2026-08-30
+
+### Fixed: compact recovery hooks no longer surface missing-runtime warnings
+
+Claude Code may run `SessionStart` after compaction with a reduced `PATH` or without a usable
+plugin root. The affected hooks now fail open at the registry boundary: successful context output
+is preserved, while missing runtimes or files no longer produce exit-code 1 or 127 warnings.
+
+A regression test executes every registered `SessionStart` command with a missing plugin root,
+an empty plugin directory, and a reduced runtime path, then verifies both exit zero and silent
+stderr. It also checks that normal session-architecture output is unchanged.
+
 ## [3.1.3] - 2026-08-30
 
 ### Fixed: `/s-continue` no longer hides fresh Codex sessions on cache-write failure
