@@ -59,8 +59,28 @@ the prompt-cache, statusline, git-context, architecture, and compact-restoration
 manifest points to `hooks/hooks-codex.json`, which injects `session-architecture-codex.md` and keeps
 compact restoration without loading the three Claude Code-only hook contracts.
 
-- **Only `s-continue` and `s-compact` are dual-host.** `usage-view`, `report-limit` and
-  `setup-statusline` read Claude Code's own billing/rate-limit records and stay single-host.
+**The after-compact hook restores; it does not ask the model to.** It runs `scripts/restore.js` at
+level 1 and injects the result as `additionalContext`. Do not turn it back into an instruction: an
+earlier version said "there is no exception" and was skipped anyway on a real autonomous run, which
+is what a declinable instruction is worth. `SessionStart(source=compact)` is the only event that
+carries injected context on both hosts — Codex's `PostCompact` returns an outcome with no context
+field, Claude Code's is absent from the union — so neither host may be moved to `PostCompact`.
+
+**`scripts/restore.js` is the only implementation of the level slicing.** Both the skill and the
+hook call it. It used to be an inline Python block inside `SKILL.md`, which the hook could only
+copy, and the copy drifted. Never reinstate a second copy in either caller.
+
+- **`s-continue`, `s-compact` and `usage-view` are dual-host.** `usage-view --host codex` reuses
+  `scripts/lib/codex-transcript.js` for discovery/normalization and `scripts/lib/codex-usage.js` for
+  the token-delta/rate-limit math, then renders through the **same** `build-report.js` →
+  `skills/usage-view/template.html` pipeline Claude Code uses — Codex sessions land in the same cache
+  tree and CSV shape (tagged `host: "codex"` in `summary.json`), so no second discovery path or
+  template exists. `build-report.js` gates the handful of genuinely host-specific spots — cost math
+  (`ratesFor()`, all-zero for Codex so `model-pricing.json`'s Anthropic rates never touch a Codex
+  token count), the rate-limit window length (`WINDOW_SECONDS`, dynamic per Codex's own
+  `rate_limits.primary.window_minutes` instead of the fixed 5h `FIVE_HOURS_S`), and plan resolution
+  (`CODEX_PLAN_INFO`). `report-limit` and `setup-statusline` still read Claude Code's own
+  billing/rate-limit records and stay single-host.
 - **A dual-host skill must not hardcode one host's plugin root.** Claude Code exports
   `CLAUDE_PLUGIN_ROOT`; Codex does not reliably export `CODEX_PLUGIN_ROOT`. Use
   `PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-${CODEX_PLUGIN_ROOT}}"`, falling back to the skill's own
