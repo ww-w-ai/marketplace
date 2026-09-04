@@ -6,7 +6,9 @@ Read [the shared cowork method](../../../shared/references/cowork-method.md) fir
 
 The root agent is the single-feature orchestrator and integration owner. Use `update_plan` as the transient phase display. Use bounded explorer agents for code discovery, workers for explicitly owned implementation slices, and fresh-context agents for independent reviews. The root owns judgment, review resolution, integration, commands used as test evidence, reports, and safety decisions.
 
-An ordinary `pdca-wf` run must not create a Codex Goal. Continue an existing Goal when the caller already has one. Create a Goal only when the user explicitly requests one. A Goal and `update_plan` are host-local controls; neither is durable cross-host state.
+An ordinary `pdca-wf` run must not create a Codex Goal. Continue an existing Goal when the caller already has one. Create a Goal only when the user explicitly requests one by the opt-in word **`goal`** — Claude Code's equivalent word is `ultracode`, and the two are not interchangeable. A Goal and `update_plan` are host-local controls; neither is durable cross-host state. Codex has no `Workflow`-equivalent for structured fan-out at single-feature scope, so `research`, `do`, and `targeted-test`/`gap-check` use explorer and worker agents directly. That is also what they do **before the word is said** — the gate withholds the Goal, never the work, and at single-feature scope the difference is whether the objective survives the turn, not whether the phases run.
+
+A persistent Goal earns its keep at roadmap scope, where `cowork-sprint` runs it — a single feature rarely outlives the turn that starts it. That is where a Goal is *useful*, not a limit on where one may exist. **If the user says `goal` during a standalone `pdca-wf` run, create it.** The word is the user's authority and this skill does not overrule it; what this skill must never do is create a Goal the user did not ask for.
 
 Every delegated prompt follows the shared dynamic-role contract:
 

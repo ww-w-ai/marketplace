@@ -68,7 +68,7 @@ codex plugin list
 
 ### Goal 与继续工作
 
-普通功能开发不会隐式创建 Goal。继续已有 Goal 时，系统使用 thread ID 恢复准确的会话，而不是猜测最新 transcript。
+普通功能开发不会隐式创建 Goal。只有当用户说出选择加入的关键词 **`goal`** 时才会创建 Goal —— 这个词解锁的是能跨越多轮对话与上下文压缩而存续的结构化、批量、栅栏式执行。（在 Claude Code 上对应的词是 `ultracode`，它解锁的是 `Workflow` 而非 Goal。两个词不可互换。）继续已有 Goal 时，系统使用 thread ID 恢复准确的会话，而不是猜测最新 transcript。
 
 ### 并行工作
 

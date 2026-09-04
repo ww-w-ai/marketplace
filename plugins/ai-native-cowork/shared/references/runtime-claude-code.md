@@ -8,7 +8,7 @@ Read [`cowork-method.md`](cowork-method.md) first. This file maps its shared res
 |---|---|
 | Current-session progress | `TodoWrite` |
 | Independent or parallel work | `Agent` calls from the main session |
-| Deterministic fan-out | `Workflow` from the main session |
+| Deterministic fan-out | `Workflow` from the main session, on the user's `ultracode` opt-in |
 | Single-feature execution | `/pdca-wf`, invoked in the main session |
 | Durable cross-session state | repository `status.json` managed by the state helper |
 | Project instructions | `CLAUDE.md` and applicable Claude rules |
@@ -21,3 +21,10 @@ For each delegated task, select a reusable base agent and append the shared role
 Mirror current progress in `TodoWrite`, but write durable lifecycle changes through the shared state helper. On resume, validate the repository, worktree, branch, commit, and state revision before continuing. Treat transcript data as recovery material rather than the state authority.
 
 Workflow scripts may perform structured or parallel execution. Judgment, review-lens selection, conflict resolution, and every irreversible approval remain in the main session.
+
+The opt-in word on this host is **`ultracode`**. Until the user says it, structured work runs as flat
+`Agent` calls; once said, it stands for the session. The word is named here because a leader that
+knows Workflow exists but not what turns it on will either never use it or use it uninvited, and
+both failures look like a judgment call rather than a missing sentence. Codex has its own word for
+the same gate — see [`runtime-codex.md`](runtime-codex.md) — so neither host's leader should assume
+its own trigger is the shared one.

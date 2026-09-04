@@ -11,7 +11,7 @@ Read [`../../../shared/references/cowork-method.md`](../../../shared/references/
 | deterministic schedule | `../scripts/schedule.py` |
 | durable state | `../scripts/state/state.py` |
 | discovery and independent reviews | flat Agent calls from main |
-| structured fan-out | one-level Workflow from main |
+| structured fan-out | one-level Workflow from main, unlocked by the user's **`ultracode`** opt-in and preferred for bulk, repetitive, or barrier/loop-shaped execution once unlocked; before the word is said, that same work runs as flat Agent calls. Flat Agent calls remain the mechanism for heterogeneous, exploratory, judgment-heavy work with few items either way |
 | one-feature execution | `pdca-wf` in main, execution-only |
 | project rules | CLAUDE.md and applicable rules |
 | recovery after a compaction | a `SessionStart` hook with matcher `compact` re-injects the pre-compact turns as `additionalContext`; `PostCompact` cannot do this, being absent from the `hookSpecificOutput` union |
@@ -24,6 +24,9 @@ Execute these rows in order. A row completes only when its exit evidence exists.
 
 | Contract ID | Claude action | Exit evidence |
 |---|---|---|
+<!-- Every Workflow named in the rows below is conditional on the user's `ultracode` opt-in. Until
+     that word is said, those rows run as flat Agent calls or as main running the commands itself.
+     Each row already names that substitute, and it is a peer mechanism, not a fallback. -->
 | `roadmap-review` | fresh Agents review intent, sizing, dependencies, ownership, and risk | no roadmap blocker |
 | `brief` | main writes the active Sprint Brief | all five Brief fields are concrete |
 | `plan-review` | fresh Agents review the Plan | no Plan blocker |

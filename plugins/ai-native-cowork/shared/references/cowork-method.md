@@ -10,7 +10,7 @@ At roadmap start, define the goal, one product-level intent anchor, a coarse spr
 
 Immediately before each sprint, complete this sequence:
 
-1. Research the current code, references, and constraints.
+1. State the standard method you already know for this class of work: its steps, and which of those steps this sprint will skip. Write it before any search or tool call. Then research the current code, references, and constraints, scoped to the blanks that statement leaves open.
 2. Write a Sprint Brief with `Problem`, `Success`, `Out of scope`, `Dependencies`, and `Pre-mortem`.
 3. Write the Plan: scope, order, deliverables, WorkList, and completion evidence.
 4. Run an independent Plan review for completeness, sizing, sequencing, and the dominant risk. Resolve blockers before Design.
@@ -21,6 +21,8 @@ Immediately before each sprint, complete this sequence:
 9. Compare the WorkList with the implementation and record gaps.
 10. Commit the sprint independently.
 11. Persist the checkpoint.
+
+Step 1 is ordered first because it bounds the rest. Research becomes expensive when the sprint does not yet know what it is looking for, so it sweeps broadly. Naming the known standard costs no search and no tokens, and it converts research from a sweep into filling named blanks. Skipping step 1 and opening with broad research is the single largest source of wasted tokens and elapsed time in this loop. For small, reversible, single-shot work, step 1 is three lines and research is one grep — that is compression, not omission.
 
 Plan review asks whether the right work is planned. Design review asks whether that plan can be implemented and verified as described. Do not merge the two reviews.
 
@@ -42,7 +44,7 @@ Only the first unfinished cluster may run. Every member of every earlier cluster
 
 Every sprint runs these gates regardless of risk score:
 
-- Research and Sprint Brief exist.
+- The known-standard statement, Research, and Sprint Brief exist.
 - Plan and independent Plan review are complete.
 - Design and independent Design review are complete.
 - Targeted tests execute against changed behavior.

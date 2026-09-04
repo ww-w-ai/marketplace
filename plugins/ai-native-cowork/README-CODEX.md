@@ -88,7 +88,7 @@ The shared method owns requirements, review gates, risk rules, artifacts, and co
 
 ### Goals and continuation
 
-Ordinary feature work does not create a Codex Goal implicitly. When work already belongs to a Goal, continuation uses its thread ID and restores that exact session rather than guessing from the latest transcript.
+Ordinary feature work does not create a Codex Goal implicitly. A Goal is created only when you say the opt-in word **`goal`** — it is what unlocks structured, bulk, barrier-shaped execution that survives turns and compaction. (On Claude Code the equivalent word is `ultracode`, and it unlocks `Workflow` rather than a Goal.) When work already belongs to a Goal, continuation uses its thread ID and restores that exact session rather than guessing from the latest transcript.
 
 ### Parallel work
 

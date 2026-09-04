@@ -189,7 +189,7 @@ flowchart TB
 
 - **Initiative** — splits the goal into sprints and runs them.
 - **Sprint** — each sprint is its own PDCA cycle, sized at ~1 human-week.
-- **Feature** — a code feature's build is delegated to `/pdca-wf`, a Workflow-driven PDCA. Non-code sprints (marketing, research, ops) skip this level and execute directly.
+- **Feature** — a code feature's build is delegated to `/pdca-wf`. Say **`ultracode`** and its execution phases fan out through `Workflow`; without that word they run as flat agent calls, and the phases are the same either way. Non-code sprints (marketing, research, ops) skip this level and execute directly.
 
 ### End-to-end flow
 

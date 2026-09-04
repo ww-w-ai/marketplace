@@ -11,9 +11,11 @@ explicit: "Do not merge the two reviews."
 | **plan-review** | **main dispatches an adversarial panel** | **is this the right work, before Design is written for it** |
 | design | main (thinking) | how it will be built, verified, and rolled back |
 | **design-review** | **main dispatches an adversarial panel** | **can this Design be implemented and verified as written, before Do pays to build it** |
-| do | Workflow | build it |
-| targeted-test / gap-check | Workflow | axis-1 built-as-designed · axis-2 does it meet the intent |
+| do | main-dispatched workers | build it |
+| targeted-test / gap-check | main-dispatched workers | axis-1 built-as-designed · axis-2 does it meet the intent |
 | report | main | fold the lesson into docs/rules so it cannot recur |
+
+"Main-dispatched workers" is the owner, not the mechanism. The mechanism is the host's, and it depends on an opt-in word: with **`ultracode`** on Claude Code those phases fan out through `Workflow`, with **`goal`** on Codex through a persistent Goal, and with neither word said they run as flat `Agent` or collaboration-agent calls. The owner never changes; only the shape does.
 
 A plan or design defect costs one full build cycle if it is found in gap-check. The cheapest
 place to catch a plan defect is before Design is written for it; the cheapest place to catch a

@@ -6,7 +6,7 @@ Read [`../../../shared/references/cowork-method.md`](../../../shared/references/
 
 | Responsibility | Mechanism |
 |---|---|
-| long-running objective | user-requested Goal |
+| long-running objective | Goal, on the user's `goal` opt-in (Claude Code's equivalent word is `ultracode`) — Codex has no `Workflow` primitive, so a persistent goal driven from `state.py` is the equivalent mechanism for structured, bulk, or barrier-shaped execution that survives turns and compaction, under the same ownership and integration discipline. Before the word is said, that same work runs as ordinary collaboration agents dispatched turn by turn from `status.json`, and no Goal is created — the gate withholds the Goal, never the work |
 | transient progress | `update_plan` |
 | deterministic schedule | `../scripts/schedule.py` |
 | durable state | `../scripts/state/state.py` |
@@ -44,4 +44,4 @@ Execute these rows in order. A row completes only when its exit evidence exists.
 
 Keep mechanical failures inside the current Design. Re-plan only a false premise and re-run only invalidated lenses. After five unsuccessful Check/Act iterations, persist a truthful pause. External or irreversible work returns to root for approval. A merge conflict stops without auto-resolution.
 
-On continuation, call `get_goal`, restore the returned thread ID, verify session identity, then validate repository, branch, worktree, state revision, commits, and pause reason. Resume the first unfinished cluster; rollout data is recovery evidence, never state authority.
+On continuation, when the run is under a Goal — that is, when the user said `goal` — call `get_goal`, restore the returned thread ID, and verify session identity. When it is not, resume from `status.json` alone and **do not create a Goal to satisfy this step**: a resume that invents the very thing the opt-in was meant to gate is the uninvited use this gate exists to prevent. Either way, then validate repository, branch, worktree, state revision, commits, and pause reason. Resume the first unfinished cluster; rollout data is recovery evidence, never state authority.

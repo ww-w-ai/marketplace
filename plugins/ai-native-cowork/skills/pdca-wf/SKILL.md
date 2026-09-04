@@ -63,7 +63,9 @@ Standalone mode does not infer permission to commit. When called by `cowork-spri
 
 ## Goal boundary
 
-Do not create a Codex Goal for an ordinary feature run. Participate in an existing Goal when the caller already has one. Create a Goal only when the user explicitly requests it.
+Do not create a Codex Goal for an ordinary feature run. Participate in an existing Goal when the caller already has one. Create a Goal only when the user says the Codex opt-in word **`goal`**.
+
+Claude Code's equivalent word is **`ultracode`**, and it unlocks `Workflow`, not a Goal. The two words are not interchangeable and neither may be inferred from the other. "The user seemed to want autonomy" is not the word.
 
 ## References
 

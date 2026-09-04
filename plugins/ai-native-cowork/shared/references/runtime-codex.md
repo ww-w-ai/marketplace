@@ -6,7 +6,7 @@ Read [`cowork-method.md`](cowork-method.md) first. This file maps its shared res
 
 | Shared responsibility | Codex mechanism |
 |---|---|
-| Long-running autonomous objective | Goal |
+| Long-running autonomous objective | Goal, on the user's `goal` opt-in |
 | Current-session progress | `update_plan` |
 | Code discovery | purpose-fit explorer agents |
 | Independent review or implementation | collaboration agents |
@@ -16,6 +16,12 @@ Read [`cowork-method.md`](cowork-method.md) first. This file maps its shared res
 | Recovery after a compaction | the root agent invokes `/s-continue` itself — Codex has no hook that can inject context, so this step is explicit and must not be skipped |
 
 Use the root agent as the orchestrator. Keep the Goal aligned with the roadmap outcome and use `update_plan` only for current progress. Neither is the cross-host state authority.
+
+The opt-in word on this host is **`goal`**. Codex has no `Workflow` primitive, so a persistent Goal
+is what carries structured, bulk, or barrier-shaped execution across turns and compaction — and it
+is created only when the user asks for it by that word. Claude Code's equivalent gate is the word
+`ultracode`; see [`runtime-claude-code.md`](runtime-claude-code.md). The two words are not
+interchangeable, and a leader must not infer one host's trigger from the other's.
 
 For each delegated task, select a reusable agent type and append the shared role delta, evidence contract, and exclusions. Use explorers for bounded codebase questions and workers for owned implementation. State file ownership explicitly, and remind workers that other edits may coexist.
 

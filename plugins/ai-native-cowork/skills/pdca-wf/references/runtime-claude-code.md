@@ -19,6 +19,10 @@ The skill's as-built document is [`../docs/01-built/pdca-wf.md`](../docs/01-buil
 | Workflow script | deterministic ordering, parallel grouping, bounded loops, structured dispatch |
 | Agent | bounded research, implementation, or verification under a dynamic role contract |
 
+Once the user has said **`ultracode`**, Workflow fan-out is the preferred mechanism for `research`, `do`, and `targeted-test`/`gap-check`, because that work is structured and bounded-loop shaped. **Until then those phases run as flat `Agent` calls.** Plan review, Design review, and other single-judgment dispatch stay flat `Agent` calls either way.
+
+Every `Workflow(...)` invocation named below is therefore conditional on that word. Read them as "the shape this phase takes once fan-out is unlocked", never as an instruction to open with one.
+
 ## Entry modes and commit ownership
 
 | Mode | Entry | Commit and checkpoint |
@@ -27,7 +31,7 @@ The skill's as-built document is [`../docs/01-built/pdca-wf.md`](../docs/01-buil
 | `preplanned` | Validate Brief, Plan, both review verdicts, Design, WorkList, groups, roles, and verification decision; then enter `do` | Standalone does not infer commit permission. Reports commit-ready evidence. |
 | `cowork` | Caller supplies reviewed sprint artifacts; enter `do` | `cowork-sprint` leader owns the mandatory sprint commit and durable checkpoint. |
 
-Execution-only modes return `{artifacts, targetedTests, gapResult, qaDiff, done, commitReady}`. Claude has no Goal primitive and must not invent an equivalent durable objective for an ordinary feature run. It participates in caller-owned sprint state when invoked by `cowork-sprint`.
+Execution-only modes return `{artifacts, targetedTests, gapResult, qaDiff, done, commitReady}`. Claude Code has no Goal primitive — that is Codex's mechanism, unlocked there by the word `goal` — and must not invent an equivalent durable objective for an ordinary feature run. It participates in caller-owned sprint state when invoked by `cowork-sprint`.
 
 ## Phase map
 

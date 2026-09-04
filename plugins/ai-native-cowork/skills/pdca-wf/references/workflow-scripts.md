@@ -1,6 +1,6 @@
 # pdca-wf — Workflow script templates
 
-These are **reference templates**. At runtime the MAIN session interpolates the feature's values and passes the string as `Workflow({script, args})`. The harness persists it to a file and runs it in the Workflow sandbox.
+These are **reference templates for Claude Code, and only once the user has said `ultracode`** — the word that unlocks `Workflow`. Without it, the same phases run as flat `Agent` calls and nothing on this page applies. Codex has no `Workflow` primitive at all; its equivalent is a persistent Goal, unlocked by the word `goal`. At runtime the MAIN session interpolates the feature's values and passes the string as `Workflow({script, args})`. The harness persists it to a file and runs it in the Workflow sandbox.
 
 ## Script contract (the Workflow runtime — NOT a standard ES module)
 

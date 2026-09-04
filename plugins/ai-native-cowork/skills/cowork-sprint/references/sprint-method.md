@@ -43,7 +43,7 @@ For the sprint list, classify relationships (same rules apply across sprints and
 - **Circular** — resolve at planning time (split / merge / re-sequence).
 
 The scheduler sets execution mode per cluster:
-- **Independent + structured/bulk** → concurrent dispatch (parallel `Agent` calls ‖ one fan-out `Workflow`).
+- **Independent + structured/bulk** → concurrent dispatch: parallel `Agent` calls, or one fan-out unit if the host's structured-fan-out mechanism is unlocked (see the runtime reference for this host). The host's opt-in word unlocks this: **`ultracode`** on Claude Code (unlocking `Workflow`), **`goal`** on Codex (unlocking a persistent Goal). The two are not interchangeable and neither may be inferred from the other. Until the word is said, the same work runs as flat `Agent` or collaboration-agent calls — which is a different mechanism, not a lesser one.
 - **Ordered, high-risk, LIVE-production, or exploratory** → sequential.
 
 ★ Concurrency is achieved by the **Leader dispatching from main**, never by nesting sub-leaders.
@@ -68,10 +68,11 @@ Output of PHASE 0: a roadmap (sprint list + order + parallelism + assigned agent
 |---|---|
 | **DELEGATE** — `Agent` swarm / parallel / council | exploratory, judgment-heavy, heterogeneous, few items |
 | **DIRECT inline** — Leader does it step-by-step | small, quick, or needs the Leader's full context |
-| **DIRECT Workflow** — Leader authors a deterministic JS script | structured, bulk, repetitive, wide parallel fan-out, needs reproducibility/barriers/loops |
+| **DIRECT fan-out** — Leader authors a deterministic script (`Workflow` on Claude Code, a Goal on Codex) | structured, bulk, repetitive, wide parallel fan-out, needs reproducibility/barriers/loops — **available only after the host opt-in word** |
 
 - Workflow is a **direct-execution** method (not delegation); its spawned agents are flat workers — correct, not a downgrade.
-- Hybrid: while delegating autonomously, if a "structured bulk parallel" chunk appears, the **Leader** designs a Workflow for just that chunk (no sub-leader improvises one).
+- DIRECT fan-out is the one pattern in this table with a precondition. The host's opt-in word unlocks this: **`ultracode`** on Claude Code (unlocking `Workflow`), **`goal`** on Codex (unlocking a persistent Goal). The two are not interchangeable and neither may be inferred from the other. Until the word is said, the same work runs as flat `Agent` or collaboration-agent calls — which is a different mechanism, not a lesser one.
+- Hybrid: while delegating autonomously, if a "structured bulk parallel" chunk appears **and the opt-in word has been said**, the **Leader** designs a fan-out unit for just that chunk (no sub-leader improvises one). Without the word, that chunk is dispatched as parallel `Agent` calls.
 - **An objective gate upgrades DIRECT → DELEGATE.** When a trustworthy objective gate (test / parity harness) exists, otherwise-DIRECT judgment-heavy work becomes safely delegatable — the gate externalizes the judgment, so a judgment-light worker can "iterate until green." **Build the gate first, then delegate against it.** sooji's S1 (1337-line LIVE Hono port) was DIRECT-inline territory until a 17/17 parity harness objectified correctness — then it delegated safely. ⚠️ Only as safe as the gate is *complete*: a happy-path-only gate (see `references/refactoring.md` → rare-branch false-green) + aggressive delegation = regressions slip through. Make the gate exercise rare branches before delegating against it.
 
 ## 4A. Agent discovery and mid-cycle evolution
@@ -144,10 +145,10 @@ Gates fire at **different phases** (catch drift early, not just at the end):
 
 ## 5b. Exit predicate — the DONE-WHEN contract for each phase
 
-Borrowed from Claude Code `/goal` (a verified built-in, v2.1.139) and hardened past it. Every phase declares a machine-checkable **exit predicate** with three parts:
+Borrowed from Claude Code's built-in `/goal` slash command (verified, v2.1.139) and hardened past it. **That command is unrelated to the Codex `goal` opt-in word taught above** — same letters, different things, and nothing here is a judgment on the Codex trigger. Every phase declares a machine-checkable **exit predicate** with three parts:
 
 1. **One measurable end state** — e.g. `bun test exits 0`, build succeeds, queue empty, file count == N.
-2. **The check, actually executed** — ★ the **Leader runs the check command and gates on the real exit code.** It does NOT judge completion by reading a claim in the transcript. (This is where cowork-sprint is strictly safer than `/goal`, whose evaluator only reads the conversation and can be fooled by "Claude said tests pass.") Reserve a model judgment only for genuinely subjective bars that have no exit code.
+2. **The check, actually executed** — ★ the **Leader runs the check command and gates on the real exit code.** It does NOT judge completion by reading a claim in the transcript. (This is where cowork-sprint is strictly safer than Claude Code's `/goal` command, whose evaluator only reads the conversation and can be fooled by "Claude said tests pass." Again: the command, not the Codex opt-in word.) Reserve a model judgment only for genuinely subjective bars that have no exit code.
 3. **Invariants that must not change** (reward-hack guard) — e.g. `no file outside src/auth/ modified`, `test count did not drop`, `coverage did not regress`. A verifiable-but-misspecified predicate ("tests pass," satisfied by deleting the tests) yields a provably-correct *useless* result; the invariant clause blocks it.
 
 **Truthful completion (ralph rule):** declare a phase done ONLY when its predicate is genuinely, verifiably true. Never emit a false "done" to escape the loop — being stuck is a *pause*, not a finish.

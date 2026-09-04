@@ -111,6 +111,35 @@ class RuntimeParityTest(unittest.TestCase):
         cls.entrypoint = read(ENTRYPOINT)
         cls.runtime_text = {name: read(path) for name, path in RUNTIMES.items()}
 
+    def test_each_host_names_its_own_opt_in_word(self) -> None:
+        """Structured fan-out is gated on a word the user types, and the word differs by host.
+
+        A host reference that names the mechanism but not the word leaves a leader knowing the
+        capability exists without knowing what turns it on — which ends as either never using it
+        or using it uninvited. Both read as a judgment call rather than a missing sentence, which
+        is why this is a test and not a style note.
+        """
+        self.assertIn("ultracode", self.runtime_text["claude"])
+        self.assertIn("goal", self.runtime_text["codex"])
+
+    def test_each_host_states_what_runs_before_the_word(self) -> None:
+        """The gate withholds the mechanism, never the work."""
+        for host, text in self.runtime_text.items():
+            self.assertRegex(
+                text.lower(),
+                r"before the word is said|until the word is said|until then|before the gate opens",
+                f"the {host} reference must say what runs before the opt-in word",
+            )
+
+    def test_neither_host_offers_the_other_hosts_word_as_its_own(self) -> None:
+        """Cross-host leak: each file may contrast the other host's word, never adopt it."""
+        for line in self.runtime_text["claude"].splitlines():
+            if "goal" in line.lower() and "ultracode" not in line.lower():
+                self.assertIn("codex", line.lower(), f"unqualified goal on Claude Code: {line[:120]}")
+        for line in self.runtime_text["codex"].splitlines():
+            if "ultracode" in line.lower():
+                self.assertIn("claude", line.lower(), f"unqualified ultracode on Codex: {line[:120]}")
+
     def test_phase_tables_have_same_order_and_complete_rows(self) -> None:
         observed = {name: phase_ids(text) for name, text in self.runtime_text.items()}
         for host, phases in observed.items():

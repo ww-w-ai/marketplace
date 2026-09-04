@@ -1,6 +1,6 @@
 # pdca-wf — structured output schemas
 
-All execution-phase Workflow scripts MUST return schema-validated JSON via `agent(prompt, {schema})`. Never free-text + regex parsing (CLAUDE.md structured-output rule). `schema` is a raw JSON Schema object.
+All execution-phase Workflow scripts MUST return schema-validated JSON via `agent(prompt, {schema})`. Never free-text + regex parsing (CLAUDE.md structured-output rule). `schema` is a raw JSON Schema object. The same rule binds the dispatch that replaces those scripts when fan-out is not unlocked — on Claude Code, the user has not said `ultracode`; on Codex, not said `goal`: a flat `Agent` call carrying one of these phases returns the same schema. The structure is owed to the phase, not to the mechanism that happens to be running it.
 
 **Compact-return rule:** verification/check results must stay parseable by main — confirmed findings + counts only, per-finding free-text fields capped (`maxLength` ~300), no transcript dumps. An oversized return gets truncated by the harness and stalls the gate.
 

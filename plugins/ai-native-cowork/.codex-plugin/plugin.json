@@ -1,6 +1,6 @@
 {
   "name": "ai-native-cowork",
-  "version": "1.18.4",
+  "version": "1.18.5",
   "description": "A dual-host collaboration harness for sprint delivery, PDCA, session insights, AI-aware commits, and documentation workflows.",
   "author": {
     "name": "ww-w-ai"

@@ -91,6 +91,52 @@ class RuntimeParityTests(unittest.TestCase):
         for token in ("Goal", "update_plan", "explorer", "collaboration", "AGENTS.md"):
             self.assertIn(token, codex)
 
+    def test_each_host_names_its_own_opt_in_word(self):
+        """Structured fan-out is gated on a word the user types, and the word differs by host.
+
+        A host reference that names the mechanism but not the word leaves a leader knowing the
+        capability exists without knowing what turns it on — which ends as either never using it
+        or using it uninvited. Both read as a judgment call rather than a missing sentence, which
+        is why this is a test and not a style note.
+        """
+        claude, codex = read(RUNTIMES["claude"]), read(RUNTIMES["codex"])
+        self.assertIn("ultracode", claude, "the Claude Code reference must name its opt-in word")
+        self.assertIn("goal", codex, "the Codex reference must name its opt-in word")
+
+    def test_each_host_states_what_runs_before_the_word(self):
+        """The gate withholds the mechanism, never the work.
+
+        Without this sentence a leader reads the pre-opt-in state as 'blocked' and either stalls
+        or opens the gate itself to get moving.
+        """
+        claude, codex = read(RUNTIMES["claude"]), read(RUNTIMES["codex"])
+        for name, text in (("claude", claude), ("codex", codex)):
+            self.assertRegex(
+                text.lower(),
+                r"before the word is said|until the word is said|until that word is said",
+                f"the {name} reference must say what runs before the opt-in word",
+            )
+
+    def test_neither_host_offers_the_other_hosts_word_as_its_own(self):
+        """Cross-host leak: the two words are not interchangeable.
+
+        Each file may MENTION the other host's word — that contrast is deliberate and useful — but
+        only alongside the other host's name, so it can never be read as this host's trigger.
+        """
+        claude, codex = read(RUNTIMES["claude"]), read(RUNTIMES["codex"])
+        for line in claude.splitlines():
+            if "goal" in line.lower() and "ultracode" not in line.lower():
+                self.assertIn(
+                    "codex", line.lower(),
+                    f"Claude Code reference mentions a goal without naming Codex: {line[:120]}",
+                )
+        for line in codex.splitlines():
+            if "ultracode" in line.lower():
+                self.assertIn(
+                    "claude", line.lower(),
+                    f"Codex reference mentions ultracode without naming Claude Code: {line[:120]}",
+                )
+
     def test_documented_state_example_is_validator_legal(self):
         method = read(ROOT / "references" / "sprint-method.md")
         section = method.split("## 6. status.json schema", 1)[1].split("## 6A.", 1)[0]
