@@ -33,8 +33,12 @@ output line per input line**, and everything downstream runs unchanged.
   cache. Subagent rollouts are excluded from the list, as CC subtask transcripts already are.
 - **Codex compaction is translated into `system/compact_boundary`**, so a compacted Codex session
   gets the same `#0` pre-loss restore a compacted CC session gets.
-- `CODEX_HOME` is honoured. Normalized copies live in `…-data/.codex-normalized/{projectHash}/`
-  (dot-prefixed so `listProjects()` skips it); the compact cache path is unchanged.
+- `CODEX_HOME` is honoured. **Everything Codex lives under `…-data/codex/`**: normalized copies in
+  `codex/.normalized/{projectHash}/`, analysis cache and `compact.txt` in `codex/{projectHash}/{sid}/`.
+  Claude Code stays at the root of the same base (the Bash statusline hook writes there). Get paths
+  from `cache-paths.forHost('codex')`; the root getters and `listProjects()` are the Claude tree and
+  never return `codex`. The one-time move of pre-split entries is `migrateCodexSubdir()` (it
+  runs while `.codex-normalized` still exists at the root). Gate: `node scripts/test-cache-host-split.js`.
 - Gate: `node scripts/test-codex-adapter.js` — synthetic fixture, no real transcript needed.
 - **The Claude path is byte-identical** and must stay so; `preprocess.js` only changes its footer
   when `--original` is passed. Verify by diffing against `git show main:scripts/preprocess.js`.
@@ -134,6 +138,13 @@ All model rates (input, cacheCreate5m, cacheCreate1h, cacheRead, output, context
 ### Skills execute via LLM instruction
 Skills have no runtime code — `SKILL.md` files contain the full execution plan that Claude follows. The LLM is the runtime.
 
+### Rate-limit burn analysis: read the doc, do not re-derive
+Before any "5h/7d window consumption by model" or "is Fable cheaper on Max" analysis, read
+`docs/RATE-LIMIT-BURN-METHOD.md`. It fixes the data sources (plugin cache only, never re-parse
+JSONL), the 5-point interval cut, the joint NNLS, the confirmed per-model factors, and a known
+`build-report.js` undercount (`--all` drops sessions that `cd` across worktrees). Extend that doc;
+do not recompute from scratch.
+
 ### /usage-view runs as background agent
 `/usage-view` launches a background Agent (SubTask) so the user can keep working. The agent runs `analyze-usage.js` → `build-report.js` → opens browser. Agent prompt is in `skills/usage-view/agent-prompt-template.txt`.
 
@@ -145,7 +156,7 @@ Reads preprocessed `compact.txt` directly — no summarization, no token expendi
 - Prompt cache TTL: 3600s (1 hour). Warning threshold: 3590s (10s buffer).
 - SubTask cache: 5 min, $6.25/MTok write. Main session: 1 hour, $10/MTok write.
 - Statusline turn idle timeout: 60s.
-- Cache guard mode: `CC_TOKEN_SAVER_CACHE_GUARD` = `warn` (default) | `block` | `off`. Default is `warn` because a hook block is a local `system/informational` message that Remote Control never forwards (`bridge/bridgeMessaging.ts` `isEligibleBridgeMessage`); warn passes the prompt and attaches `additionalContext` so Claude's reply, which IS forwarded, announces the expiry.
+- Cache guard mode: `CC_TOKEN_SAVER_CACHE_GUARD` = `off` (default) | `warn` | `block`. Off by default because of Remote Control: a hook block is rendered locally and never reaches the remote client, so the guard behaved differently by seat; re-enable the default once Remote Control forwards hook messages. `warn` passes the prompt and attaches `additionalContext` so Claude's reply announces the expiry; it is the mode that works under Remote Control, where a hook block is a local `system/informational` message the remote client never receives (`bridge/bridgeMessaging.ts` `isEligibleBridgeMessage`).
 - Gate flag (block mode only): `$TMPDIR/claude-cache-warn-{SESSION_ID}` (one-time block per idle period). Machine-injected prompts never touch it — the exemption runs first.
 
 ## File Relationships
@@ -163,6 +174,11 @@ skills/s-continue/SKILL.md
 
 scripts/test_product_parity.py
   → gates the three manifests + Codex READMEs + the dual-host skill rules
+
+scripts/test-session-project-map.js
+  → gates build-report's session→project resolution (a session id can sit under many
+    project dirs because statusline-logger writes ratelimit.csv per cwd; only the
+    transcript's project has timeline.csv)
 
 hooks/cache-expiry-check.sh
   → reads CC transcript JSONL directly (last assistant timestamp)
