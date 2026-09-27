@@ -26,6 +26,7 @@ codex plugin add ai-native-cowork@ww-w-ai
 | [dari-devtools](https://github.com/ww-w-ai/dari-devtools) | Plan-based autonomous PDCA execution orchestrator with validators for Clean Architecture, behavior-driven tests, and OWASP security. |
 | [devmd](https://github.com/ww-w-ai/devmd) | 25 markdown spec files that define your entire software project. Scan codebases, verify against source, generate specs. |
 | [ai-native-cowork](https://github.com/ww-w-ai/ai-native-cowork) | One collaboration harness for Claude Code and Codex: reviewed sprints, PDCA, session insights, AI-aware commits, and documentation workflows. |
+| [super-video-agent](https://github.com/ww-w-ai/super-video-agent) | Turn a PDF, essay, card news or topic into a narrated short where every frame is drawn in code. Voice first, read-out rules for any language, one-scene re-renders. Claude Code and Codex. |
 
 ## Install a Plugin
 
@@ -35,4 +36,5 @@ claude plugin install dari-standards@ww-w-ai
 claude plugin install dari-devtools@ww-w-ai
 claude plugin install devmd@ww-w-ai
 claude plugin install ai-native-cowork@ww-w-ai
+claude plugin install super-video-agent@ww-w-ai
 ```
