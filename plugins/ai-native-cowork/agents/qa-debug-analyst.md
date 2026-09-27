@@ -1,5 +1,5 @@
 <!--
-Adapted from bkit qa-debug-analyst (Apache-2.0, popup-studio-ai/bkit-claude-code).
+Adapted from bkit qa-debug-analyst (Apache-2.0, ww-w-ai/bkit-claude-code).
 Mechanism vendored; bkit-infra references (docker-log assumption, zero-script-qa
 skill) removed and generalized to be runtime-agnostic. No bkit install required.
 -->

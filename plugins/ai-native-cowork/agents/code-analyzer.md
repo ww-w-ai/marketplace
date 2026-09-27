@@ -26,7 +26,7 @@ model: sonnet
 ---
 
 <!--
-Adapted from bkit code-analyzer (Apache-2.0, popup-studio-ai/bkit-claude-code).
+Adapted from bkit code-analyzer (Apache-2.0, ww-w-ai/bkit-claude-code).
 Mechanism vendored; bkit-infra references removed. No bkit install required.
 -->
 

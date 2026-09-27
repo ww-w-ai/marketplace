@@ -3,7 +3,7 @@
 // PROVENANCE / LICENSE (MUST keep): the gate-routing contract, the balanced-JSON
 // extraction (`extractBalancedJson`) and the agent-output→numeric-value parse
 // (`parseAgentOutput`) are ADAPTED from bkit
-// (popup-studio-ai/bkit-claude-code, Apache-2.0)
+// (ww-w-ai/bkit-claude-code, Apache-2.0)
 // lib/application/quality-gates/measure-router.js. Modified: deterministic gates
 // run directly here (no agent), project threshold override, audit formatter.
 // Apache-2.0 §4 notice retained in the plugin's THIRD-PARTY-NOTICES.md. Derivative work.
