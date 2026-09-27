@@ -251,6 +251,8 @@ Passa il mouse su qualsiasi punto per vedere il testo effettivo del prompt, il c
 
 **Condividilo.** L'intero dashboard è un singolo file HTML autonomo — tutti i dati incorporati, nessun server necessario. Invialo al tuo team, al tuo manager o al tuo contabile. Nessuna dipendenza esterna. Funziona offline. Usa la modalità `private` per rimuovere tutto il testo dei prompt prima di condividere — mantiene l'analisi dei costi intatta rimuovendo il contenuto della conversazione.
 
+**Ogni account, ogni richiesta contata una sola volta.** I limiti di frequenza appartengono a un account di accesso, quindi gli account non vengono mai mescolati: con due o più accessi registrati, il dashboard mostra una scheda per account, con l'accesso corrente per primo. Una sessione ripresa o forkata copia le richieste precedenti in un nuovo file; ogni richiesta viene comunque contata una sola volta. Ogni cartella di configurazione di Claude Code viene letta — `~/.claude`, `$CLAUDE_CONFIG_DIR` e qualsiasi cartella elencata in `SUPER_TOKEN_SAVER_CONFIG_DIRS` (separate da `:`, o `;` su Windows).
+
 ```
 /usage-view                  # Tutto il tempo, tutti i progetti
 /usage-view current          # Solo la finestra corrente di 5 ore
@@ -268,7 +270,7 @@ Passa il mouse su qualsiasi punto per vedere il testo effettivo del prompt, il c
 
 Anthropic non pubblica la formula esatta per la finestra di 5 ore. Scopriamola insieme.
 
-Quando raggiungi un limite di frequenza, esegui `/report-limit`. I tuoi dati di utilizzo attuali vengono inviati automaticamente come GitHub Discussion. Più dati raccogliamo, più chiara diventa la formula.
+Esegui `/report-limit` — non serve raggiungere un limite di frequenza. Invia ogni finestra di 5 ore degli ultimi 7 giorni come discussione GitHub precompilata; controllala e invia. `/report-limit blocked` invia solo le finestre in cui hai raggiunto il limite. Più dati raccogliamo, più chiara diventa la formula.
 
 ---
 

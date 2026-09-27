@@ -259,6 +259,8 @@ Hold musepekeren over et punkt for å se den faktiske promptteksten, tokenantall
 
 **Del det.** Hele dashbordet er én frittstående HTML-fil — alle data innebygd, ingen server nødvendig. Send det til teamet ditt, sjefen din eller regnskapsføreren din. Ingen eksterne avhengigheter. Fungerer offline. Bruk `private`-modus for å fjerne all prompttekst før deling — bevarer kostnadsanalytikken mens samtalinnhold fjernes.
 
+**Hver konto, hver forespørsel telles én gang.** Ratebegrensninger tilhører en innloggingskonto, så kontoer blandes aldri: med to eller flere innlogginger registrert, viser dashbordet én fane per konto, med gjeldende innlogging først. En gjenopptatt eller forgrenet økt kopierer tidligere forespørsler til en ny fil; hver forespørsel telles likevel bare én gang. Hver Claude Code-konfigurasjonsmappe leses — `~/.claude`, `$CLAUDE_CONFIG_DIR`, og eventuelle mapper du lister i `SUPER_TOKEN_SAVER_CONFIG_DIRS` (adskilt med `:`, eller `;` på Windows).
+
 ```
 /usage-view                  # All tid, alle prosjekter
 /usage-view current          # Kun gjeldende 5-timers vindu
@@ -276,7 +278,7 @@ Hold musepekeren over et punkt for å se den faktiske promptteksten, tokenantall
 
 Anthropic publiserer ikke den eksakte formelen for 5-timersvinduet. La oss finne det ut sammen.
 
-Når du treffer en hastighetsgrense, kjør `/report-limit`. Gjeldende bruksdata sendes automatisk inn som en GitHub Discussion. Jo mer data vi samler, desto klarere blir formelen.
+Kjør `/report-limit` — ingen hastighetsgrense nødvendig. Den sender hvert 5-timersvindu fra de siste 7 dagene som en forhåndsutfylt GitHub Discussion; se gjennom og send inn. `/report-limit blocked` sender bare vinduene der du traff grensen. Jo mer data vi samler, desto klarere blir formelen.
 
 ---
 

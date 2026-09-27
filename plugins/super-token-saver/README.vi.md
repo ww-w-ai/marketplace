@@ -250,6 +250,8 @@ Di chuột vào bất kỳ chấm nào để xem văn bản prompt thực tế, 
 
 **Chia sẻ nó.** Toàn bộ bảng điều khiển là một file HTML độc lập duy nhất — tất cả dữ liệu được nhúng, không cần máy chủ. Gửi cho nhóm, quản lý, hoặc kế toán của bạn. Không phụ thuộc bên ngoài. Hoạt động offline. Dùng chế độ `private` để xóa tất cả văn bản prompt trước khi chia sẻ — giữ nguyên phân tích chi phí trong khi xóa nội dung cuộc trò chuyện.
 
+**Mỗi tài khoản, mỗi request được đếm một lần.** Giới hạn tốc độ thuộc về một tài khoản đăng nhập, vì vậy các tài khoản không bao giờ bị trộn lẫn: khi có từ hai lượt đăng nhập trở lên được ghi nhận, bảng điều khiển hiển thị một tab cho mỗi tài khoản, tài khoản đăng nhập hiện tại hiển thị trước. Một session được resume hoặc fork sẽ sao chép các request trước đó vào một file mới; mỗi request vẫn chỉ được đếm một lần. Mọi thư mục cấu hình Claude Code đều được đọc — `~/.claude`, `$CLAUDE_CONFIG_DIR`, và bất kỳ thư mục nào bạn liệt kê trong `SUPER_TOKEN_SAVER_CONFIG_DIRS` (phân tách bằng `:`, hoặc `;` trên Windows).
+
 ```
 /usage-view                  # Tất cả thời gian, tất cả dự án
 /usage-view current          # Chỉ cửa sổ 5 giờ hiện tại
@@ -267,7 +269,7 @@ Di chuột vào bất kỳ chấm nào để xem văn bản prompt thực tế, 
 
 Anthropic không công bố công thức chính xác cho cửa sổ 5 giờ. Hãy cùng tìm hiểu.
 
-Khi bạn đạt giới hạn tốc độ, chạy `/report-limit`. Dữ liệu sử dụng hiện tại của bạn được tự động gửi dưới dạng GitHub Discussion. Càng nhiều dữ liệu chúng ta thu thập, công thức càng rõ ràng hơn.
+Chạy `/report-limit` — không cần phải bị giới hạn tốc độ trước. Nó gửi mọi khung giờ 5 tiếng trong 7 ngày gần nhất của bạn dưới dạng một GitHub Discussion đã điền sẵn; xem lại rồi gửi. `/report-limit blocked` chỉ gửi những khung giờ mà bạn đã bị giới hạn. Càng nhiều dữ liệu chúng ta thu thập, công thức càng rõ ràng hơn.
 
 ---
 

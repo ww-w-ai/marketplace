@@ -261,6 +261,8 @@ Beweeg de muis over een stip om de werkelijke prompttekst, het aantal tokens en 
 
 **Deel het.** Het volledige dashboard is één op zichzelf staand HTML-bestand — alle gegevens ingebed, geen server nodig. Stuur het naar je team, manager of accountant. Geen externe afhankelijkheden. Werkt offline. Gebruik de `private`-modus om alle prompttekst te verwijderen vóór het delen — behoudt kostenanalyse terwijl gespreksinhoud wordt verwijderd.
 
+**Elk account, elke aanvraag één keer geteld.** Rate limits horen bij een login-account, dus accounts worden nooit gemengd: bij twee of meer geregistreerde logins toont het dashboard één tabblad per account, met de huidige login eerst. Een hervatte of afgesplitste sessie kopieert eerdere aanvragen naar een nieuw bestand; elke aanvraag wordt nog steeds maar één keer geteld. Elke Claude Code-configuratiemap wordt gelezen — `~/.claude`, `$CLAUDE_CONFIG_DIR` en alle mappen die je opgeeft in `SUPER_TOKEN_SAVER_CONFIG_DIRS` (gescheiden door `:`, of `;` op Windows).
+
 ```
 /usage-view                  # Alle tijd, alle projecten
 /usage-view current          # Alleen huidige 5-uursvenster
@@ -278,7 +280,7 @@ Beweeg de muis over een stip om de werkelijke prompttekst, het aantal tokens en 
 
 Anthropic publiceert de exacte formule voor het 5-uursvenster niet. Laten we het samen uitzoeken.
 
-Wanneer je een snelheidslimiet bereikt, voer `/report-limit` uit. Je huidige gebruiksgegevens worden automatisch ingediend als GitHub Discussion. Hoe meer data we verzamelen, hoe duidelijker de formule wordt.
+Voer `/report-limit` uit — geen snelheidslimiet nodig. Het stuurt elk 5-uursvenster van je afgelopen 7 dagen als een vooraf ingevulde GitHub Discussion; controleer en dien in. `/report-limit blocked` stuurt alleen de vensters waarin je de limiet bereikte. Hoe meer data we verzamelen, hoe duidelijker de formule wordt.
 
 ---
 

@@ -253,6 +253,8 @@ Gerçek prompt metnini, token sayısını ve tam maliyet dökümünü (Input/Out
 
 **Paylaşın.** Panoların tamamı, tüm veriler gömülü olarak tek bir bağımsız HTML dosyasıdır — sunucu gerekmez. Ekibinize, yöneticinize veya muhasebecinize gönderin. Dış bağımlılık yok. Çevrimdışı çalışır. Paylaşmadan önce tüm prompt metnini çıkarmak için `private` modunu kullanın — konuşma içeriğini kaldırırken maliyet analitiğini korur.
 
+**Her hesap, her istek yalnızca bir kez sayılır.** Hız sınırları bir oturum açma hesabına aittir, bu yüzden hesaplar asla karışmaz: kayıtlı iki veya daha fazla oturum açma varsa, pano her hesap için bir sekme gösterir, mevcut oturum açma önce gelir. Devam ettirilen veya çatallanan bir oturum önceki istekleri yeni bir dosyaya kopyalar; yine de her istek bir kez sayılır. Her Claude Code yapılandırma klasörü okunur — `~/.claude`, `$CLAUDE_CONFIG_DIR` ve `SUPER_TOKEN_SAVER_CONFIG_DIRS` içinde listelediğiniz klasörler (`:` ile ayrılır, Windows'ta `;`).
+
 ```
 /usage-view                  # Tüm zamanlar, tüm projeler
 /usage-view current          # Yalnızca mevcut 5 saatlik pencere
@@ -270,7 +272,7 @@ Gerçek prompt metnini, token sayısını ve tam maliyet dökümünü (Input/Out
 
 Anthropic, 5 saatlik pencere için tam formülü yayımlamıyor. Birlikte çözelim.
 
-Hız sınırına ulaştığınızda `/report-limit`'i çalıştırın. Mevcut kullanım verileriniz otomatik olarak bir GitHub Discussion olarak gönderilir. Ne kadar çok veri toplarsak, formül o kadar netleşir.
+`/report-limit`'i çalıştırın — hız sınırına ulaşmanıza gerek yok. Son 7 gününüzdeki her 5 saatlik pencereyi önceden doldurulmuş bir GitHub Discussion olarak gönderir; gözden geçirip gönderin. `/report-limit blocked`, yalnızca sınıra ulaştığınız pencereleri gönderir. Ne kadar çok veri toplarsak, formül o kadar netleşir.
 
 ---
 

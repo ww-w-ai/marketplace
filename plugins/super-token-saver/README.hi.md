@@ -251,6 +251,8 @@ Max Plan users rate limit पर hit होते हैं और wonder कर
 
 **Share करें।** पूरा dashboard एक single self-contained HTML file है — सभी data embedded, कोई server नहीं चाहिए। अपनी team, manager, या accountant को भेजें। कोई external dependencies नहीं। Offline काम करता है। Share करने से पहले सभी prompt text strip करने के लिए `private` mode use करें — cost analytics intact रहती है जबकि conversation content remove हो जाती है।
 
+**हर account, हर request एक बार गिनी जाती है।** Rate limit एक login account से जुड़ी होती है, इसलिए accounts कभी नहीं मिलाए जाते: दो या अधिक logins रिकॉर्ड में होने पर, dashboard हर account के लिए एक tab दिखाता है, current login सबसे पहले। कोई resumed या forked session पुराने requests को एक नई file में copy करता है; फिर भी हर request एक बार ही गिनी जाती है। हर Claude Code config folder पढ़ा जाता है — `~/.claude`, `$CLAUDE_CONFIG_DIR`, और `SUPER_TOKEN_SAVER_CONFIG_DIRS` में आपके द्वारा दिए गए कोई भी folders (`:` से अलग, Windows पर `;` से)।
+
 ```
 /usage-view                  # All time, all projects
 /usage-view current          # Current 5-hour window only
@@ -268,7 +270,7 @@ Max Plan users rate limit पर hit होते हैं और wonder कर
 
 Anthropic 5-hour window का exact formula publish नहीं करता। आइए मिलकर पता लगाएं।
 
-जब आप rate limit hit करें, `/report-limit` run करें। आपका current usage data automatically GitHub Discussion के रूप में submit हो जाता है। जितना ज़्यादा data हम collect करेंगे, formula उतना ज़्यादा clear होगा।
+`/report-limit` run करें — rate limit hit करने की ज़रूरत नहीं। यह आपके पिछले 7 दिनों की हर 5-घंटे की window को एक pre-filled GitHub Discussion के रूप में भेजता है; उसे review करके submit करें। `/report-limit blocked` सिर्फ वो windows भेजता है जहाँ आपने limit hit किया था। जितना ज़्यादा data हम collect करेंगे, formula उतना ज़्यादा clear होगा।
 
 ---
 

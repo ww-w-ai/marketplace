@@ -251,6 +251,8 @@ Pasa el cursor sobre cualquier punto para ver el texto real del prompt, el recue
 
 **Compártelo.** El panel completo es un único archivo HTML autónomo — todos los datos incorporados, sin necesidad de servidor. Envíalo a tu equipo, tu gerente o tu contador. Sin dependencias externas. Funciona sin conexión. Usa el modo `private` para eliminar todo el texto de los prompts antes de compartir — mantiene el análisis de costos intacto mientras elimina el contenido de la conversación.
 
+**Cada cuenta, cada solicitud contada una sola vez.** Los límites de tasa pertenecen a una cuenta de inicio de sesión, así que las cuentas nunca se mezclan: con dos o más inicios de sesión registrados, el panel muestra una pestaña por cuenta, con el inicio de sesión actual primero. Una sesión reanudada o bifurcada copia las solicitudes anteriores en un archivo nuevo; cada solicitud sigue contándose una sola vez. Se lee cada carpeta de configuración de Claude Code — `~/.claude`, `$CLAUDE_CONFIG_DIR` y cualquier carpeta que incluyas en `SUPER_TOKEN_SAVER_CONFIG_DIRS` (separadas por `:`, o `;` en Windows).
+
 ```
 /usage-view                  # Todo el tiempo, todos los proyectos
 /usage-view current          # Solo la ventana actual de 5 horas
@@ -268,7 +270,7 @@ Pasa el cursor sobre cualquier punto para ver el texto real del prompt, el recue
 
 Anthropic no publica la fórmula exacta para la ventana de 5 horas. Vamos a descubrirla juntos.
 
-Cuando alcances un límite de velocidad, ejecuta `/report-limit`. Tus datos de uso actuales se envían automáticamente como GitHub Discussion. Cuantos más datos recopilemos, más clara será la fórmula.
+Ejecuta `/report-limit` — no necesitas alcanzar un límite de velocidad. Envía cada ventana de 5 horas de tus últimos 7 días como un GitHub Discussion prellenado; revísalo y envíalo. `/report-limit blocked` envía solo las ventanas en las que alcanzaste el límite. Cuantos más datos recopilemos, más clara será la fórmula.
 
 ---
 
