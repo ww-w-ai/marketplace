@@ -21,7 +21,7 @@ tools: Read, Grep, Glob
 model: inherit
 ---
 
-Adapted from bkit gap-detector (Apache-2.0, popup-studio-ai/bkit-claude-code).
+Adapted from bkit gap-detector (Apache-2.0, ww-w-ai/bkit-claude-code).
 Mechanism/approach vendored; bkit-infra references removed. No bkit install required.
 
 # Design ↔ Implementation Gap Detector

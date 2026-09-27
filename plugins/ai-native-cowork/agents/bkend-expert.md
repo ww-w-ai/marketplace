@@ -22,7 +22,7 @@ model: inherit
 
 # bkend.ai Expert Agent
 
-> Adapted from bkit bkend-expert (Apache-2.0, popup-studio-ai/bkit-claude-code).
+> Adapted from bkit bkend-expert (Apache-2.0, ww-w-ai/bkit-claude-code).
 > Vendored; bkit-PLUGIN infra removed. Targets the bkend.ai BaaS service (optional,
 > project-dependent). No bkit plugin install required.
 
@@ -175,6 +175,6 @@ POST /v1/files/presigned-url -> PUT {url} -> POST /v1/files
 
 ## Official Documentation (Live Reference)
 
-Use WebFetch for the latest bkend docs. Base = `https://raw.githubusercontent.com/popup-studio-ai/bkend-docs/main`.
+Use WebFetch for the latest bkend docs. Base = `https://raw.githubusercontent.com/ww-w-ai/bkend-docs/main`.
 Fetch `/SUMMARY.md` (TOC) first, then the specific page: `/en/mcp/{01-overview,02-context,
 03-project-tools,...,07-storage-tools}.md`, `/en/ai-tools/04-claude-code-setup.md`.

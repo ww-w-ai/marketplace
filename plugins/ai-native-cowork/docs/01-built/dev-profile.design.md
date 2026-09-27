@@ -2,7 +2,7 @@
 
 > Status: BUILT (v1.13.0) — as-built design. Live authority = `skills/cowork-sprint/references/dev-profile.md` (+ vendored `agents/`). Design-of-record; for current behavior read the skill.
 > Builds on: [prd-to-gap-intent-chain.design.md](./prd-to-gap-intent-chain.design.md) (the §6A local-config + gap-analysis chain this extends).
-> Provenance: mechanisms adapted from **bkit** (Apache-2.0, popup-studio-ai/bkit-claude-code).
+> Provenance: mechanisms adapted from **bkit** (Apache-2.0, ww-w-ai/bkit-claude-code).
 > Method/ideas only — no source text copied. Attribution in each absorbed reference file.
 
 ---

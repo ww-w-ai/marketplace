@@ -6,7 +6,7 @@
 > on top of cowork's prose adversarial review when the stakes warrant it.
 >
 > **Provenance**: the gate mechanism (routing contract + balanced-JSON parse + threshold) is
-> adapted from bkit (`popup-studio-ai/bkit-claude-code`, Apache-2.0) `measure-router.js`.
+> adapted from bkit (`ww-w-ai/bkit-claude-code`, Apache-2.0) `measure-router.js`.
 > See the repo `THIRD-PARTY-NOTICES.md`. bkit's FSM / phase enforcement / Stop-hook are NOT
 > included — only the definitions + code, tuned to cowork lenses.
 

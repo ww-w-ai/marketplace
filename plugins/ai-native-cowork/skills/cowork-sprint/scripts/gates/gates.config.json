@@ -1,6 +1,6 @@
 {
   "version": "0.1",
-  "_provenance": "Gate mechanism (routing + balanced-JSON parse + threshold contract) adapted from bkit (popup-studio-ai/bkit-claude-code, Apache-2.0) lib/application/quality-gates/measure-router.js + bkit.config.json. Adapted for cowork: deterministic gates run directly (no agent), thresholds resolve project-override > this catalog > fallback. See NOTICE.",
+  "_provenance": "Gate mechanism (routing + balanced-JSON parse + threshold contract) adapted from bkit (ww-w-ai/bkit-claude-code, Apache-2.0) lib/application/quality-gates/measure-router.js + bkit.config.json. Adapted for cowork: deterministic gates run directly (no agent), thresholds resolve project-override > this catalog > fallback. See NOTICE.",
   "thresholdResolutionOrder": [
     "project override (repo CLAUDE.md '## cowork-gates' or <repo>/.cowork-gates.json)",
     "this catalog default",

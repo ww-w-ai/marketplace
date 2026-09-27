@@ -2,7 +2,7 @@
 
 > Procedure for measuring `matchRate` — the QA gate's Axis 2. Generic and
 > domain-agnostic. Approach adapted from **bkit gap-detector** (Apache-2.0,
-> popup-studio-ai/bkit-claude-code) — method/idea only, no source text copied.
+> ww-w-ai/bkit-claude-code) — method/idea only, no source text copied.
 > Pairs with: PRD-lite (intent) → WorkList (declared items) → THIS (measure) →
 > intent-audit (Tier-2). Read this when running the QA gate (sprint-method.md §5).
 

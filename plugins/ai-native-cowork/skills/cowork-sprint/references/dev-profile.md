@@ -221,7 +221,7 @@ silently-degraded contract check is a real correctness hole, not a style prefere
   non-web dev traces its own end-to-end path). Executed by `gap-detector` / a runtime probe.
 
 ## Provenance
-Mechanisms adapted from bkit (Apache-2.0, popup-studio-ai/bkit-claude-code):
+Mechanisms adapted from bkit (Apache-2.0, ww-w-ai/bkit-claude-code):
 Context Anchor, gap-detector scoring signals, sprint-master-planner topo-sort +
 bin-packing, sprint-orchestrator auto-pause + measure-then-advance, pdca-iterator
 plateau/anti-gaming, qa-lead L1-L5 taxonomy, M2/M4 design/test discipline.

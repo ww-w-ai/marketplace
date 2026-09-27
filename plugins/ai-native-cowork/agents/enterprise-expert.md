@@ -26,7 +26,7 @@ model: inherit
 ---
 
 <!--
-  Adapted from bkit enterprise-expert (Apache-2.0, popup-studio-ai/bkit-claude-code).
+  Adapted from bkit enterprise-expert (Apache-2.0, ww-w-ai/bkit-claude-code).
   Expertise vendored; bkit-infra references removed. No bkit install required.
 -->
 
