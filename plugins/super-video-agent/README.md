@@ -129,7 +129,7 @@ cue always makes the same sound, so a re-render matches.
   (`scripts/voice.mjs`).
 - **Your own voice, or any engine.** Clone your voice from a 5–15 s recording with Qwen3-TTS on
   your own computer, at no API cost. Or use Fish Audio, ElevenLabs, MeloTTS, recordings you made
-  yourself, or the macOS `say` voice for quick drafts.
+  yourself.
 - **Every line is heard back.** After the voice is made, speech-to-text listens to each line
   and compares it with the script. A line that came out wrong, cut short, or clipped at the end is
   flagged and made again.
@@ -254,9 +254,19 @@ Every variable the skill reads:
 | `SVA_QWEN3_MODEL` | a Qwen3-TTS model id (default `Qwen/Qwen3-TTS-12Hz-1.7B-Base`) | another voice model on every film; `meta.voice.model` in a plan still wins |
 | `SVA_STT_MODEL` | a faster-whisper model name (default `small`) | optional |
 | `ELEVENLABS_API_KEY`, `ELEVENLABS_VOICE_ID` | your ElevenLabs key and voice | optional hosted provider |
-| `FISH_AUDIO_API_KEY`, `FISH_AUDIO_VOICE_ID` | your Fish Audio key and voice | optional hosted provider |
+| `FISH_AUDIO_API_KEY` (or `FISH_API_KEY`), `FISH_AUDIO_VOICE_ID` | your Fish Audio key and voice | optional hosted provider |
+| `SAY_VOICE` | a macOS `say` voice name (default `Yuna`) | macOS only, with `--provider say` |
 
-Without any of these, the macOS `say` voice works for drafts. Clone only your own voice, or one you have permission to use.
+Set up at least one voice provider above; with none, the voice step stops and lists what to set. Clone only your own voice, or one you have permission to use.
+
+**Where to set them** — all of these are environment variables. Pick the one place that fits your setup:
+
+| Setup | Where |
+|---|---|
+| Claude Code (any OS) | `env` in `~/.claude/settings.json`: `{"env": {"ELEVENLABS_API_KEY": "..."}}` |
+| macOS · Linux, zsh | `export ELEVENLABS_API_KEY="..."` in `~/.zshenv` |
+| Linux, bash | `export ELEVENLABS_API_KEY="..."` in `~/.bashrc` |
+| Windows (PowerShell) | run `setx ELEVENLABS_API_KEY "..."`, then open a new terminal |
 
 ### Fonts
 
@@ -294,6 +304,24 @@ in plain words starts the skill too.
 
 The skill first asks whether to follow the Shorts formula (hook first, fast lines, a banded frame with a fixed hook title) or free style, plus the frame size and length if it can't infer them. If you hand it a finished
 script or storyboard, it asks whether to use it as written or rework it.
+
+### Adding image and video models
+
+The default needs no image or video model: every frame is drawn in code. When you want more on
+screen — a photo-real background, a product shot, a few seconds of generated motion — name the tool
+and the shot in the same message.
+
+The request below is **an example only**. Swap in the tools and routes you use; the skill does not
+ship with or default to any of them.
+
+```
+/super-video-agent Make a 60-second promo from this deck. Generate the opening background with
+Codex image generation, and a 5-second product clip with Seedance through browser-use.
+```
+
+Say how to reach each tool (a CLI, an API key, or a browser you are logged in to), or generate the
+files yourself and hand them over. Either way, generated media is material: the
+skill composes each scene around it and records every file's source and license in `FILM.md`.
 
 ## Credits
 
