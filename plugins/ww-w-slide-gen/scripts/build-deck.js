@@ -176,7 +176,7 @@ const deck = `<!doctype html>
     background:rgba(255,255,255,.85);padding:2px 6px;border-radius:4px;}
 
   /* ===== Print (Cmd+P) — only the currently viewed slide, one 16:9 page ===== */
-  /* Printing every slide is heavy enough to freeze the preview, so Cmd+P prints only the current slide (fast). Full PDF export goes through the deck-pdf.js CLI. */
+  /* Printing every slide is heavy enough to freeze the preview, so Cmd+P prints only the current slide (fast). P prints the whole deck (print-all). */
   @media print {
     @page { size: 13.333in 7.5in; margin: 0; }   /* 1280x720 @96dpi = 16:9 (PPT standard) */
     html, body { width:auto !important; height:auto !important; overflow:visible !important;
@@ -198,7 +198,7 @@ const deck = `<!doctype html>
     #track > .slide { display:none !important; }
     #track > .slide.cur { display:block !important; width:1920px !important; height:1080px !important;
       position:relative !important; overflow:hidden; box-shadow:none !important; }
-    /* Full mode (deck-pdf.js CLI sets body.print-all): every slide, one page each */
+    /* Full mode (P key, or an external PDF tool, sets body.print-all): every slide, one page each */
     body.print-all #track > .slide { display:block !important; width:1920px !important; height:1080px !important;
       position:relative !important; overflow:hidden; box-shadow:none !important;
       break-after:page; page-break-after:always; }
@@ -266,12 +266,18 @@ ${sectionsHtml}
       hkJumpPage: 'Jump straight to that page',
       hkHomeEnd: 'First / last page',
       hkFullscreen: 'Fullscreen',
+      hkPrintAll: 'Print the whole deck (save as PDF)',
       hkGuideToggle: 'Toggle alignment guide (lines)',
       hkEditMode: 'Edit mode (Esc = exit)',
       hkMoveMode: 'Page-move mode (← → reposition · Enter/M apply · Esc cancel · say "save" to commit to source)',
       hkEditGestures: 'Move / resize / nudge · D duplicate · Del delete · ⌘Z undo',
       hkImageCrop: 'Shift+drag to pan · wheel to zoom (Alt = fine) · corner = frame size — frame-less images auto-crop on gesture too',
-      hkCoverTool: 'Drag to draw a rectangle over it. Toolbar: <b>solid</b> = fill with the color picker / <b>AI eraser</b> = when the background is not a solid color (gradient/pattern), inpaint the covered area. Alt+click = delete · turn X off to move/resize by clicking',
+      hkCoverTool: 'Drag to draw a rectangle over it and fill it with the color picker. Alt+click = delete · turn X off to move/resize by clicking.',
+      hkCoverToolAi: '<b>AI eraser</b> in the toolbar inpaints the covered area when the background is not a solid color.',
+      hkLabelEditGestures: 'While editing: drag · corner · arrow keys',
+      hkLabelImageCrop: 'Image crop (any image)',
+      hkLabelCoverTool: 'X (while editing) = cover tool',
+      hkLabelTextEdit: 'Double-click text',
       hkTextEdit: 'Edit text (Esc = done)',
       hkToggleHelp: 'Open/close this help',
       helpFooterHint: 'Click anywhere · Esc to close',
@@ -333,12 +339,18 @@ ${sectionsHtml}
       hkJumpPage: '해당 페이지로 바로 이동',
       hkHomeEnd: '처음 / 마지막 페이지',
       hkFullscreen: '전체화면',
+      hkPrintAll: '덱 전체 인쇄 (PDF로 저장)',
       hkGuideToggle: '정렬 가이드(라인) 토글',
       hkEditMode: '편집 모드 (Esc = 종료)',
       hkMoveMode: '페이지 이동 모드 (← → 재배치 · Enter/M 적용 · Esc 취소 · “저장”이라 말하면 소스 확정)',
       hkEditGestures: '이동 / 크기 / 미세조정 · D 복제 · Del 삭제 · ⌘Z 되돌리기',
       hkImageCrop: 'Shift+드래그 이동 · 휠 확대(Alt 미세) · 모서리 창크기 — 프레임 없는 이미지도 제스처 시 자동 크롭',
-      hkCoverTool: '드래그로 사각형을 그려 가림. 툴바: <b>단색</b>=색상 피커로 채움 / <b>AI 지우개</b>=배경이 단색이 아닐 때(그라데이션·무늬) 지운 영역을 합성. Alt+클릭=삭제 · X 끄면 클릭해 이동/크기',
+      hkCoverTool: '드래그로 사각형을 그려 가리고 색상 피커로 채움. Alt+클릭=삭제 · X 끄면 클릭해 이동/크기',
+      hkCoverToolAi: '배경이 단색이 아니면(그라데이션·무늬) 툴바의 <b>AI 지우개</b>로 가린 영역을 합성.',
+      hkLabelEditGestures: '편집 중: 드래그 · 모서리 · 방향키',
+      hkLabelImageCrop: '이미지 자르기 (모든 이미지)',
+      hkLabelCoverTool: 'X (편집 중) = 가림 도구',
+      hkLabelTextEdit: '글자 더블클릭',
       hkTextEdit: '글자 편집 (Esc = 완료)',
       hkToggleHelp: '이 도움말 열기/닫기',
       helpFooterHint: '아무 곳이나 클릭 · Esc 로 닫기',
@@ -432,11 +444,6 @@ ${sectionsHtml}
       f.classList.toggle('shown', si < i || (si === i && fi < step));
     }));
     counter.textContent = (i + 1) + ' / ' + N;
-    /* [disabled 2026-07-05] Animation-slide sub-numbering (base-step, e.g. 51-1..51-6). Decided to drop
-    numbering on animated pages entirely — source kept as a comment for reference.
-    const curPn = slides[i].querySelector('.s-pagenum');
-    if (curPn) curPn.textContent = frags[i].length ? ((i + 1) + '-' + (step + 1)) : ('' + (i + 1));
-    */
     slides.forEach((s, si) => s.classList.toggle('cur', si === i)); // Print (Cmd+P) = current slide only
     typingBurst = false; // Prevent a typing burst from leaking into the next page transition
     try { localStorage.setItem('deckSlide', i); } catch(_){}  // Remember the current page
@@ -494,11 +501,18 @@ ${sectionsHtml}
     return wrap.children.length;
   }
   function clearPrintPages(){ if (__ppEl){ __ppEl.remove(); __ppEl = null; } document.body.classList.remove('pp-on'); }
-  window.__buildPrintPages = buildPrintPages;   // Called by deck-pdf.js before page.pdf() (in case beforeprint doesn't fire)
+  window.__buildPrintPages = buildPrintPages;   // For an external PDF tool, called before page.pdf() (in case beforeprint doesn't fire)
   window.__clearPrintPages = clearPrintPages;
   // Browser Cmd+P: expand only when print-all is set (full PDF). Otherwise keep the current slide as-is (no loadAll, stays fast).
-  addEventListener('beforeprint', () => { if (document.body.classList.contains('print-all')) buildPrintPages(); });
-  addEventListener('afterprint', clearPrintPages);
+  addEventListener('beforeprint', () => { if (document.body.classList.contains('print-all') && !__ppEl) buildPrintPages(); });
+  addEventListener('afterprint', () => { clearPrintPages(); document.body.classList.remove('print-all'); });
+  // P = print the whole deck (one page per slide and animation step). Waits for every image to decode first.
+  function printAll(){
+    document.body.classList.add('print-all');
+    if (!__ppEl) buildPrintPages();
+    const imgs = [...__ppEl.querySelectorAll('img')];
+    Promise.all(imgs.map(img => img.decode ? img.decode().catch(() => {}) : null)).then(() => window.print());
+  }
   function next(){ if (step < frags[i].length) step++; else if (i < N-1){ i++; step = 0; } else return; render(); }
   function prev(){ if (step > 0) step--; else if (i > 0){ i--; step = frags[i].length; } else return; render(); }
   function toggleFull(){ if (!document.fullscreenElement) document.documentElement.requestFullscreen(); else document.exitFullscreen(); }
@@ -517,6 +531,7 @@ ${sectionsHtml}
     clearTimeout(jumpT); if (jumpBuf) jumpT = setTimeout(() => { jumpBuf = ''; showJump(); }, 1800);
   }
   // ===== Hotkey guide (open/close with ?) =====
+  const AI_ERASER = ${JSON.stringify(CFG.features?.aiEraser === true)};
   function hkRow(k, d){ return '<tr><td style="padding:4px 34px 4px 0;font-weight:700;white-space:nowrap;">' + k + '</td><td style="color:#3A3A3A;">' + d + '</td></tr>'; }
   const helpEl = document.createElement('div'); helpEl.id = 'help';
   helpEl.style.cssText = 'position:fixed;inset:0;z-index:80;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.6);';
@@ -527,13 +542,14 @@ ${sectionsHtml}
     + hkRow('0-9 → Enter', t('hkJumpPage'))
     + hkRow('Home / End', t('hkHomeEnd'))
     + hkRow('F', t('hkFullscreen'))
+    + hkRow('P', t('hkPrintAll'))
     + hkRow('L', t('hkGuideToggle'))
     + hkRow('E', t('hkEditMode'))
     + hkRow('M', t('hkMoveMode'))
-    + hkRow('While editing: drag · corner · arrow keys', t('hkEditGestures'))
-    + hkRow('Image crop (any image)', t('hkImageCrop'))
-    + hkRow('X (while editing) = cover tool', t('hkCoverTool'))
-    + hkRow('Double-click text', t('hkTextEdit'))
+    + hkRow(t('hkLabelEditGestures'), t('hkEditGestures'))
+    + hkRow(t('hkLabelImageCrop'), t('hkImageCrop'))
+    + hkRow(t('hkLabelCoverTool'), t('hkCoverTool') + (AI_ERASER ? ' ' + t('hkCoverToolAi') : ''))
+    + hkRow(t('hkLabelTextEdit'), t('hkTextEdit'))
     + hkRow('?', t('hkToggleHelp'))
     + '</table><div style="font-size:18px;color:#6E6D72;margin-top:18px;">' + t('helpFooterHint') + '</div></div>';
   document.body.appendChild(helpEl);
@@ -610,6 +626,7 @@ ${sectionsHtml}
     else if ((e.key === 'm' || e.key === 'M') && !navLock) { e.preventDefault(); setMove(true); }
     else if (e.key === 'f' || e.key === 'F') { e.preventDefault(); toggleFull(); }
     else if (e.key === 'l' || e.key === 'L') { document.body.classList.toggle('show-guide'); } // Guide lines (L for "line") — G is taken by group
+    else if ((e.key === 'p' || e.key === 'P') && !e.metaKey && !e.ctrlKey && !navLock) { e.preventDefault(); printAll(); }
     else if (e.key === '?') { e.preventDefault(); toggleHelp(); }
     else if (e.key === 'Escape' && helpEl.style.display === 'flex') { helpEl.style.display = 'none'; }
     else if (e.key === 'Escape' && document.fullscreenElement) document.exitFullscreen();

@@ -69,12 +69,19 @@ Write the title as the conclusion, the lead as the reason, the body as evidence.
 
 ### 5. Images (only when a slide needs art)
 
-Follow `docs/image-workflow.md`: design the full page, generate the mockup, keep the art, remove its text, then place editable HTML text on top (`html/pages/06-artwork.html` shows the pattern). Brief each image with `templates/image-brief.md`.
+Follow `docs/image-workflow.md`. Brief each image with `templates/image-brief.md`.
+
+1. Generate the full slide as one image, with the exact copy, inside the design-system frame (header, body, footer zones).
+2. Show it to the user. Fix content before going further.
+3. Generate it again with the copy removed. Keep text that is part of the artwork (a sign, a label inside an illustration).
+4. Place the text-free image as `.art` and rebuild every word as HTML on top (`html/pages/06-artwork.html`). Shrink or move anything that falls outside the design-system zones.
 
 ```
 if running in Codex         → use the built-in image_gen tool, one call per asset
 elif Codex CLI is installed → codex exec --skip-git-repo-check -C <deck root> -s workspace-write "<use built-in image_gen; full prompt; save to assets/backgrounds/<id>.png>"
-else                        → use the image tool the host provides
+elif a browser automation tool is available (browser-use, Claude in Chrome)
+                            → open chatgpt.com in the user's logged-in browser, send the same prompt, download the image into assets/
+else                        → use the image tool the host provides, or ask the user for the images
 ```
 
 Real product screens are original captures in `assets/screenshots/`, never generated.
@@ -96,7 +103,7 @@ Then open `<deck root>/html/deck.html` in a browser and step through every slide
 ```
 Deck:      <deck root>/html/deck.html
 Slides:    N  (list: NN · claim)
-Edit:      open the deck, press E to edit text in place; export with the browser print dialog for PDF
+Keys:      E edit in place · F fullscreen · P print the whole deck to PDF · ? all shortcuts
 Unverified: <numbers or quotes still marked unverified, or "none">
 Not done:  <anything skipped, e.g. images not generated>
 ```

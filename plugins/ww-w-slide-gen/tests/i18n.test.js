@@ -53,3 +53,13 @@ test('build-deck.js has no Hangul outside the ko dictionary and its CSS dual-lan
     .filter(line => hangul.test(line) && !line.includes('data-ui-lang="ko"'));
   assert.deepEqual(strayLines, [], 'Found Hangul outside the ko dictionary / CSS ko overrides');
 });
+
+test('help rows take their labels from UI_TEXT unless the label is only key names', () => {
+  // A literal label is allowed only when it names keys (F, ?, Home / End). Any other English word
+  // would stay English for Korean users, and the Hangul check above cannot see it.
+  const keyWords = new Set(['Space', 'PgUp', 'PgDn', 'Enter', 'Home', 'End']);
+  const literals = [...source.matchAll(/hkRow\('([^']*)'/g)].map(m => m[1]);
+  assert.ok(literals.length > 0, 'expected some key-name labels in the help table');
+  const prose = literals.filter(label => (label.match(/[A-Za-z]{2,}/g) || []).some(w => !keyWords.has(w)));
+  assert.deepEqual(prose, [], 'Help row labels with words must use t(...)');
+});

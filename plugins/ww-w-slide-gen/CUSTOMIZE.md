@@ -71,5 +71,5 @@ For a project you will keep building, keep the downloaded copy, apply the change
 
 ## 6. Delivery
 
-Deliver `html/deck.html` for static HTML, or the downloaded HTML for a live-edited copy. For a PDF, switch to full-print mode, print, and check every page. Do not confuse single-slide printing with full-deck printing. Delivering only the generated image output fixes the text into the image, so reconstruct the final text in HTML.
+Deliver `html/deck.html` for static HTML, or the downloaded HTML for a live-edited copy. For a PDF, press **P** to print the whole deck, save as PDF, and check every page. Cmd+P prints only the current slide. Delivering only the generated image output fixes the text into the image, so reconstruct the final text in HTML.
 Official workflow: [Compare originals, then create a separate final deck](docs/comparison-workflow.md). Preserve the comparison deck. Run `npm run build:final` to create a published-only clone.

@@ -1,6 +1,6 @@
 {
   "name": "ww-w-slide-gen",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Build presentations as editable HTML slides: one claim per slide, brand tokens, generated art with editable text on top, one self-contained deck.html.",
   "author": {
     "name": "ww-w-ai"

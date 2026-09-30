@@ -17,7 +17,9 @@ The default image generation uses Codex's built-in `image_gen`. Claude Code disp
 codex exec --skip-git-repo-check -C /absolute/path/my-deck -s workspace-write "<instruction: use built-in image_gen, full prompt, target path>"
 ```
 
-Call it once per asset, then verify the file exists after each call. If Codex is not available, use whatever image tool the host provides. The build itself never calls an image API.
+Call it once per asset, then verify the file exists after each call.
+
+If Codex is not available, drive ChatGPT in the browser instead: a browser automation tool (browser-use, Claude in Chrome) opens chatgpt.com in your logged-in session, sends the same prompt, and downloads the image into `assets/`. If neither is available, use whatever image tool the host provides. The build itself never calls an image API.
 
 ## Per-page brief template
 
