@@ -1,0 +1,18 @@
+{
+  "deckTitle": "ww-w Slide Gen · Your next presentation",
+  "footerBrand": "YOUR BRAND · your-domain.com",
+  "output": "deck.html",
+  "exportFilename": "presentation.html",
+  "storageKey": "ww-w-slide-gen-template-v1",
+  "stylesheets": ["theme.css", "components.css", "pages.css"],
+  "uiLang": "auto",
+  "features": { "aiEraser": false },
+  "slides": [
+    {"file": "pages/01-cover.html"},
+    {"file": "pages/02-content.html"},
+    {"file": "pages/03-evidence.html"},
+    {"file": "pages/04-process.html"},
+    {"file": "pages/05-comparison.html"},
+    {"file": "pages/06-artwork.html"}
+  ]
+}

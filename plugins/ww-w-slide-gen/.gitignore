@@ -1,0 +1,10 @@
+node_modules/
+.DS_Store
+output/
+html/deck.html
+*.log
+*.bak
+_backup/
+tmp/
+*.zip
+__MACOSX/

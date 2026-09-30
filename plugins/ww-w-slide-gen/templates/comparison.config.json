@@ -1,0 +1,30 @@
+{
+  "deckTitle": "Design comparison",
+  "footerBrand": "YOUR BRAND",
+  "output": "comparison.html",
+  "exportFilename": "comparison.html",
+  "storageKey": "comparison-v1",
+  "stylesheets": [
+    "theme.css",
+    "components.css",
+    "pages.css"
+  ],
+  "final": {
+    "deckTitle": "Final presentation",
+    "output": "final.html",
+    "exportFilename": "final.html",
+    "storageKey": "final-v1"
+  },
+  "slides": [
+    {
+      "file": "pages/reference-01.html",
+      "role": "reference",
+      "pair": "cover"
+    },
+    {
+      "file": "pages/published-01.html",
+      "role": "published",
+      "pair": "cover"
+    }
+  ]
+}

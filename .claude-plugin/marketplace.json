@@ -160,6 +160,28 @@
         "ffmpeg",
         "korean"
       ]
+    },
+    {
+      "name": "ww-w-slide-gen",
+      "description": "Build presentations as editable HTML slides: one claim per slide, brand tokens, generated art with editable text on top, one self-contained deck.html.",
+      "version": "0.1.0",
+      "source": {
+        "source": "url",
+        "url": "https://github.com/ww-w-ai/ww-w-slide-gen.git"
+      },
+      "author": {
+        "name": "ww-w-ai"
+      },
+      "license": "MIT",
+      "keywords": [
+        "slides",
+        "presentation",
+        "deck",
+        "pitch-deck",
+        "html",
+        "design-system",
+        "korean"
+      ]
     }
   ]
 }

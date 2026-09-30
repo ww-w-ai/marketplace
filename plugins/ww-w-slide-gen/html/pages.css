@@ -1,0 +1,28 @@
+/* Page-specific composition only. Shared colors and type stay in theme.css. */
+#content { --column-gap: 60px; --column-width: calc((1920px - 2 * var(--page-margin) - 2 * var(--column-gap)) / 3); }
+#content .card { top: 320px; width: var(--column-width); height: 590px; }
+#content .card-a { left: var(--page-margin); }
+#content .card-b { left: calc(var(--page-margin) + var(--column-width) + var(--column-gap)); }
+#content .card-c { right: var(--page-margin); }
+#evidence .evidence { left: var(--page-margin); top: 318px; width: calc((1920px - 2 * var(--page-margin)) * .6813); height: 614px; }
+#evidence .proof-note { position: absolute; right: calc(var(--page-margin) + 38px); top: 375px; width: calc((1920px - 2 * var(--page-margin)) * .259); }
+#evidence .proof-note h2 { margin-top: 32px; font-size: var(--font-heading); }
+#evidence .proof-note p { margin-top: 24px; font-size: var(--font-body); line-height: var(--leading-body); color: var(--muted); }
+#process { --step-gap: 75px; --step-width: calc((1920px - 2 * var(--page-margin) - 3 * var(--step-gap)) / 4); }
+#process .card { top: 370px; width: var(--step-width); height: 400px; }
+#process .step-a { left: var(--page-margin); }
+#process .step-b { left: calc(var(--page-margin) + var(--step-width) + var(--step-gap)); }
+#process .step-c { right: calc(var(--page-margin) + var(--step-width) + var(--step-gap)); }
+#process .step-d { right: var(--page-margin); }
+#process .arrow { position: absolute; top: 520px; font-size: 46px; color: var(--primary); }
+#process .arrow-a { left: calc(var(--page-margin) + var(--step-width) + 20px); }
+#process .arrow-b { left: calc(50% - 17px); }
+#process .arrow-c { right: calc(var(--page-margin) + var(--step-width) + 20px); }
+#process .loop-note { position: absolute; left: var(--page-margin); right: var(--page-margin); top: 835px; padding: 28px; border-top: 2px solid var(--primary); font-size: var(--font-body); color: var(--primary); }
+#comparison table { position: absolute; left: var(--page-margin); top: 325px; width: calc(1920px - 2 * var(--page-margin)); border-collapse: collapse; font-size: var(--font-body); }
+#comparison th, #comparison td { text-align: left; padding: 32px; border-bottom: 1px solid var(--line); }
+#comparison th { background: var(--primary); color: var(--bg); }
+#comparison td:last-child { background: var(--primary-soft); font-weight: 700; }
+#artwork .s-title { max-width: 1160px; top: 225px; }
+#artwork .s-lead { max-width: 920px; top: 465px; }
+#artwork .chip { position: absolute; left: var(--page-margin); top: 680px; }

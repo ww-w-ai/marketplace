@@ -1,0 +1,13 @@
+{
+  "name": "ww-w-slide-gen",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Copyable HTML slide engine with editable text and replaceable design tokens.",
+  "scripts": {
+    "build": "node scripts/build-deck.js",
+    "build:final": "node scripts/build-final.js",
+    "build:compare": "node scripts/build-deck.js --config comparison.config.json",
+    "test": "node --test"
+  },
+  "engines": {"node": ">=20"}
+}

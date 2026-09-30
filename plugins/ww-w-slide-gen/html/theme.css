@@ -1,0 +1,42 @@
+/* Brand decisions live here. Components consume semantic roles. */
+@font-face { font-family: Deck; src: url('../assets/fonts/Pretendard-Regular.otf'); font-weight: 400; font-display: swap; }
+@font-face { font-family: Deck; src: url('../assets/fonts/Pretendard-Bold.otf'); font-weight: 700; font-display: swap; }
+@font-face { font-family: Deck; src: url('../assets/fonts/Pretendard-Black.otf'); font-weight: 900; font-display: swap; }
+:root {
+  --sans: Deck, system-ui, sans-serif;
+  --bg: #fffefa;
+  --surface: #f8f5eb;
+  --text: #151208;
+  --muted: #5a5340;
+  --line: #dcd8ca;
+  --primary: #005e57;
+  --primary-soft: #dcf9f5;
+  --accent: #ffdc3d;
+  --on-accent: #151208;
+  --cover-bg: var(--accent);
+  --cover-text: var(--on-accent);
+  --font-display: 132px;
+  --font-title: 80px;
+  --font-heading: 44px;
+  --font-body: 32px;
+  --font-small: 24px;
+  --font-label: 22px;
+  --leading-title: 1.12;
+  --leading-body: 1.5;
+  --tracking-title: -0.045em;
+  --space-1: 8px;
+  --space-2: 16px;
+  --space-3: 24px;
+  --space-4: 32px;
+  --space-6: 48px;
+  --space-9: 72px;
+  --page-margin: 72px;
+  --title-top: 116px;
+  --body-top: 290px;
+  --body-bottom: 150px;
+  --radius: 24px;
+  --shadow: 0 18px 48px #15120812;
+  --z-art: 0;
+  --z-content: 1;
+  --z-note: 2;
+}

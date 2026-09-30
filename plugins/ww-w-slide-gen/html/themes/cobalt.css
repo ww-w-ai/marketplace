@@ -1,0 +1,17 @@
+/* Optional theme override. Load after theme.css and before components.css. */
+:root {
+  --bg: #ffffff;
+  --surface: #f1f4fb;
+  --text: #101828;
+  --muted: #475467;
+  --line: #d8deeb;
+  --primary: #1536b8;
+  --primary-soft: #eaf0ff;
+  --accent: #b6e600;
+  --on-accent: #101828;
+  --cover-bg: var(--primary);
+  --cover-text: #ffffff;
+  --page-margin: 96px;
+  --radius: 12px;
+}
+.cover .cover-rule { background: var(--accent); }

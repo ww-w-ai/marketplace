@@ -1,0 +1,33 @@
+{
+  "name": "ww-w-slide-gen",
+  "version": "0.1.0",
+  "description": "Build presentations as editable HTML slides: one claim per slide, brand tokens, generated art with editable text on top, one self-contained deck.html.",
+  "author": {
+    "name": "ww-w-ai"
+  },
+  "repository": "https://github.com/ww-w-ai/ww-w-slide-gen",
+  "license": "MIT",
+  "keywords": [
+    "slides",
+    "presentation",
+    "deck",
+    "html",
+    "design-system"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "ww-w Slide Gen",
+    "shortDescription": "Editable HTML decks from your story.",
+    "longDescription": "Give it a brief, notes or a document. It outlines one claim per slide, copies the deck template, applies your brand tokens, writes each slide in editable HTML, generates art without baked text when needed, builds one self-contained deck.html and checks every slide.",
+    "developerName": "ww-w-ai",
+    "category": "Productivity",
+    "capabilities": [
+      "Interactive",
+      "Write"
+    ],
+    "defaultPrompt": [
+      "Make a 10-slide pitch deck from these notes.",
+      "Turn this proposal document into a company intro deck."
+    ]
+  }
+}
