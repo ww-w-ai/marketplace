@@ -16,13 +16,30 @@ export function locateLibraryDir(env = process.env) {
   return path.join(REPO_ROOT, "library");
 }
 
+/** Valid role/kind pairs: sound effects and clips, then 3D models, owner image refs, code-built models. */
+const ROLE_KINDS = {
+  sfx: ["audio", "video"],
+  reaction: ["audio", "video"],
+  character: ["model", "code"],
+  prop: ["model", "code"],
+  set: ["model", "code"],
+  "character-ref": ["image"],
+};
+
+/** Kinds `assets.mjs model` handles (everything that is not a timed cue clip). */
+export const MODEL_KINDS = ["model", "image", "code"];
+
+export function isModelAsset(asset) {
+  return !!asset && MODEL_KINDS.includes(asset.kind);
+}
+
 function isValidAsset(a) {
   return (
     a &&
     typeof a.id === "string" &&
     a.id.length > 0 &&
-    (a.role === "sfx" || a.role === "reaction") &&
-    (a.kind === "audio" || a.kind === "video") &&
+    Object.prototype.hasOwnProperty.call(ROLE_KINDS, a.role) &&
+    ROLE_KINDS[a.role].includes(a.kind) &&
     typeof a.path === "string" &&
     a.path.length > 0 &&
     a.license &&
@@ -55,9 +72,28 @@ export function openLibrary(env = process.env) {
   return loadLibrary(dir);
 }
 
-/** Absolute path to a library asset's file on disk. */
+/**
+ * Throws unless `file` stays inside the library folder. A catalogue is data a
+ * user or a downloaded pack wrote, so neither a `..` path nor a symlink may
+ * steer a copy to a file outside it. Compares real paths when the file exists.
+ * @param {{dir:string}} library
+ * @param {string} file absolute path
+ * @param {string} label what to name in the error (an asset id or a file name)
+ */
+export function assertInsideLibrary(library, file, label) {
+  const root = fs.realpathSync(library.dir);
+  const target = fs.existsSync(file) ? fs.realpathSync(file) : path.resolve(file);
+  const lexicalRoot = path.resolve(library.dir);
+  const inside = (r, t) => t.startsWith(r + path.sep);
+  const ok = fs.existsSync(file) ? inside(root, target) : inside(lexicalRoot, target) || inside(root, target);
+  if (!ok) throw new Error(`asset "${label}" resolves outside the library folder: ${file}`);
+}
+
+/** Absolute path to a library asset's file on disk; throws if the catalogue path leaves the library. */
 export function assetFilePath(library, asset) {
-  return path.join(library.dir, asset.path);
+  const file = path.join(library.dir, asset.path);
+  assertInsideLibrary(library, file, asset.id);
+  return file;
 }
 
 export function getById(library, id) {
