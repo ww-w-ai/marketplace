@@ -4,7 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { decodeMonoPcm } from "../lib/audio-analysis.mjs";
 import { writeWavPCM16 } from "../lib/wav.mjs";
-import { spokenRange, cutSpans, withQuietTail, withSentenceEnd, groupByChars } from "../lib/line-split.mjs";
+import { spokenRange, cutSpans, cutLineSamples, withSentenceEnd, groupByChars, sentLength, refuseOversize } from "../lib/line-split.mjs";
 import { wordsFromCharAlignment } from "../lib/timing.mjs";
 import { tagSpans } from "../lib/tags.mjs";
 
@@ -63,6 +63,8 @@ const BATCH_MAX_CHARS = 2500;
 // a closing [pause] tag lets the last line finish (0 of 25). It is billed like text (8 characters),
 // so it closes a request of several lines, never each line.
 const CLOSING_PAUSE = " [pause]";
+// The text a batch may hold: the request limit less the closing pause one batch appends.
+const REQUEST_MAX_CHARS = BATCH_MAX_CHARS - CLOSING_PAUSE.length;
 // Tags that make no sound; every other tag ([laughs], [sighs]) is part of its line's audio.
 const SILENT_TAG = /^\[(?:short |long )?paus(?:e|es)\]$/i;
 
@@ -76,6 +78,20 @@ function settings(voice, voiceCfg) {
     throw new Error("no ElevenLabs voice id: set plan.json meta.voice.voiceId or ELEVENLABS_VOICE_ID.");
   }
   return { apiKey, voiceId, model: (voiceCfg && voiceCfg.model) || DEFAULT_MODEL };
+}
+
+/**
+ * The voices the account can use, as the service lists them (page size 100). The key is sent in
+ * a header and never printed.
+ * @returns {Promise<object[]>}
+ */
+export async function listVoices() {
+  const apiKey = process.env.ELEVENLABS_API_KEY;
+  if (!apiKey) throw new Error("ELEVENLABS_API_KEY is not set. Export it to list voices.");
+  const res = await fetch("https://api.elevenlabs.io/v2/voices?page_size=100", { headers: { "xi-api-key": apiKey } });
+  if (!res.ok) throw new Error(`ElevenLabs voice list failed: ${res.status} ${res.statusText}`);
+  const json = await res.json();
+  return json.voices || [];
 }
 
 async function requestSpeech({ apiKey, voiceId, model }, text) {
@@ -135,7 +151,7 @@ function itemAlignment(align, at, length, fromSec, lastSpoken) {
  * ending in the same quiet tail. Words are timed from each clip's start.
  * @param {{id:string, text:string, outPath:string}[]} items
  */
-async function speakAndCut(items, cfg) {
+async function speakAndCut(items, cfg, cutOptions) {
   const closing = items.length > 1 && tagMap({ model: cfg.model }) ? CLOSING_PAUSE : "";
   const json = await requestSpeech(cfg, items.map((it) => (items.length > 1 ? withSentenceEnd(it.text) : it.text)).join(" ") + closing);
   const samples = await decodeSpeech(json, items[0].outPath.replace(/\.wav$/, ".raw.mp3"));
@@ -151,17 +167,15 @@ async function speakAndCut(items, cfg) {
     if (!range) throw new Error(`ElevenLabs alignment has no spoken characters for line "${it.id}"`);
     return { start: align.character_start_times_seconds[range[0]], end: align.character_end_times_seconds[range[1]], last: range[1] };
   });
-  const spans = cutSpans(edges, samples.length / SAMPLE_RATE);
+  const clips = cutLineSamples(samples, SAMPLE_RATE, { edges, spans: cutSpans(edges, samples.length / SAMPLE_RATE, cutOptions) }, cutOptions);
 
   return items.map((it, k) => {
-    const { from, to } = spans[k];
-    const clip = samples.subarray(Math.round(from * SAMPLE_RATE), Math.round(to * SAMPLE_RATE));
-    const tailed = withQuietTail(clip, SAMPLE_RATE, undefined, (edges[k].end - from) * SAMPLE_RATE);
+    const { from, cut } = clips[k];
     fs.mkdirSync(path.dirname(it.outPath), { recursive: true });
-    writeWavPCM16(it.outPath, [tailed.samples], SAMPLE_RATE);
+    writeWavPCM16(it.outPath, [clips[k].samples], SAMPLE_RATE);
     const spoken = itemAlignment(align, offsets[k], it.text.length, from, edges[k].last);
     const result = { id: it.id, wavPath: it.outPath, words: wordsFromCharAlignment(spoken.text, spoken.starts, spoken.ends, 0), wordsRelative: true };
-    if (tailed.cut) result.flag = "TAIL";
+    if (cut) result.flag = "TAIL";
     return result;
   });
 }
@@ -174,9 +188,10 @@ async function speakAndCut(items, cfg) {
  * @param {{voiceCfg?:{voiceId?:string, model?:string}}} ctx
  */
 export async function synthBatch(items, ctx) {
+  refuseOversize(items, { limit: REQUEST_MAX_CHARS, provider: "elevenlabs" });
   const cfg = settings(null, ctx && ctx.voiceCfg);
   const results = [];
-  for (const group of groupByChars(items, BATCH_MAX_CHARS)) results.push(...(await speakAndCut(group, cfg)));
+  for (const group of groupByChars(items, REQUEST_MAX_CHARS, sentLength)) results.push(...(await speakAndCut(group, cfg, ctx && ctx.voiceCfg && ctx.voiceCfg.cut)));
   return results;
 }
 

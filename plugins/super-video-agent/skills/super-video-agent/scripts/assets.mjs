@@ -6,17 +6,19 @@ import fs from "node:fs";
 import path from "node:path";
 import { parseArgs, printHelpAndExit, fail, abs } from "./lib/cli.mjs";
 import { reelPaths, readJson, writeJson, ensureDir } from "./lib/reeldir.mjs";
-import { openLibrary, locateLibraryDir, assetFilePath, assertInsideLibrary, getById, searchAssets, isModelAsset } from "./lib/library.mjs";
-import { collectPlanCues, defaultPlay } from "./lib/cues.mjs";
+import { openLibrary, locateLibraryDir, assetFilePath, assertInsideLibrary, getById, searchAssetsRanked, isModelAsset } from "./lib/library.mjs";
+import { collectPlanCues, defaultPlay, cueFadeFields } from "./lib/cues.mjs";
 import { ffmpeg, ffprobe } from "./lib/ffmpeg.mjs";
 
 const HELP = `usage: assets.mjs search <query> [--role sfx|reaction|character|prop|set|character-ref] [--limit N]
        assets.mjs fetch <reel-dir> [--allow-personal-scope]
        assets.mjs model <id> <reel-dir> [--allow-personal-scope]
 
-search   Lists library assets whose description/tags match every word in
-         <query> (case-insensitive): clips with duration, 3D models and
-         images with rigged/clips, plus the license.
+search   Lists library assets whose description/tags match the words in
+         <query> (case-insensitive): those matching every word first, then
+         those matching some, more words first, marked "(k/n words)".
+         Clips show duration, 3D models and images rigged/clips, plus the
+         license.
 model    Copies a 3D model (character, prop, set) or a code-built model
          module into <reel-dir>/assets/models/<id>/, an owner image into
          <reel-dir>/assets/refs/<id>/, and prints its license. A glTF also
@@ -32,9 +34,11 @@ fetch    Copies every asset cued in <reel-dir>/plan.json's lines[].cues
          every fetched asset's license is printed.
 
 The library is not bundled with the skill (its files carry third-party
-rights). Without one (no SVA_ASSET_LIB and no <skill>/library/), both
-commands print "no library found at <path>", how to point SVA_ASSET_LIB
-at a folder with catalog.json, and exit 0.
+rights). It is looked for in SVA_ASSET_LIB when set, else in
+~/.super-video-agent/library (the same folder under the home folder on
+every OS). Without one there, every command prints "no library found at
+<path>", where it looked and how to set it, and exits 0; the folder is
+never created.
 `;
 
 /**
@@ -43,10 +47,13 @@ at a folder with catalog.json, and exit 0.
  * @param {Record<string, string|undefined>} [env]
  */
 export function noLibraryMessage(dir, env = process.env) {
-  const where = env.SVA_ASSET_LIB ? "SVA_ASSET_LIB names no folder with catalog.json" : "the asset library is not bundled with the skill";
+  const where = env.SVA_ASSET_LIB
+    ? "SVA_ASSET_LIB names no folder with catalog.json"
+    : "SVA_ASSET_LIB is not set, so the default folder ~/.super-video-agent/library was used, and it has no catalog.json";
   return (
-    `no library found at ${dir} — ${where}. To use one, set SVA_ASSET_LIB=<folder with catalog.json> ` +
-    `(references/pipeline.md "Asset library"); without it, synthesized sounds still work.`
+    `no library found at ${dir} — ${where}. To use one, put a folder with catalog.json there or set ` +
+    `SVA_ASSET_LIB=<folder with catalog.json> (references/pipeline.md "Asset library"); ` +
+    `without it, synthesized sounds still work.`
   );
 }
 
@@ -80,12 +87,17 @@ async function runSearch(rest, flags) {
     return;
   }
   const limit = flags.limit ? parseInt(flags.limit, 10) : undefined;
-  const results = searchAssets(library, query, { role: flags.role, limit });
+  const results = searchAssetsRanked(library, query, { role: flags.role, limit });
   if (results.length === 0) {
     process.stdout.write("no matches\n");
     return;
   }
-  for (const a of results) process.stdout.write(searchLine(a) + "\n");
+  for (const r of results) process.stdout.write(rankedLine(r) + "\n");
+}
+
+/** A search result line; a hit that matched only some of the words says how many. */
+export function rankedLine({ asset, matched, words }) {
+  return matched < words ? `(${matched}/${words} words) ${searchLine(asset)}` : searchLine(asset);
 }
 
 /** One `search` result line: clips show duration, models show rigged/clips. */
@@ -307,6 +319,7 @@ export async function fetchAssets({ dir, allowPersonalScope = false, log = () =>
     gainDb: cue.gainDb == null ? 0 : cue.gainDb,
     maxSec: cue.maxSec,
     play: cue.play || defaultPlay(byId.get(cue.asset).role),
+    ...cueFadeFields(cue),
   }));
   const cuesPath = path.join(libDir, "cues.json");
   writeJson(cuesPath, { version: 1, cues: normalizedCues });

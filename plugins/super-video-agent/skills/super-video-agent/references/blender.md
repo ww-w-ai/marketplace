@@ -43,6 +43,18 @@ Keep the maintained `scene.py` and its assets in the reel. Save a `.blend` for i
 Record which file is authoritative; do not regenerate over manual `.blend` edits. `reel.html`
 owns the timing contract, captions and sound, not the Blender geometry.
 
+Keep visible Blender text in a keyed, language-aware data table read by `scene.py`.
+Record the keys in `FILM.md`. `Reel.pictureText` and the browser text scanner cannot inspect
+Blender objects. A language-neutral picture is reused; translated text baked into the scene
+requires rendering only its affected ranges and assembling that language's picture. Use the
+existing language-specific picture insertion path:
+`render.mjs <dir> --no-captions --lang <code> --insert <localized.mp4>@0`.
+Declare each baked-in text interval in the overlay page's `window.__reel.langSpans` as
+`{start, end, in: "scene"}`. This keeps the dub gate from accepting the base-language picture
+for translated scene text (`references/pipeline.md`). Do not claim that dubbing alone changes
+baked-in text. Do not combine `--span` with `--insert`; assemble the changed Blender ranges
+into the full localized clip before insertion.
+
 Build and inspect the hardest frame first. For a cast, inspect a lineup in the final Blender
 renderer and get the same owner approval required by the cast stage. Record object names,
 rigs, actions, sockets and scale in `FILM.md`. GLB export and a Three.js testbed are unnecessary

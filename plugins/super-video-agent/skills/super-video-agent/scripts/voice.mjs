@@ -4,18 +4,20 @@
 // write voice/timings.json — the single timeline authority (design.md §2).
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { parseArgs, printHelpAndExit, fail, abs } from "./lib/cli.mjs";
+import { loadCastVoices } from "./lib/cast-voices.mjs";
 import { reelPaths, loadPlan, writeJson, readJson, ensureDir } from "./lib/reeldir.mjs";
 import { ffmpeg, probeDuration, applyAtempo } from "./lib/ffmpeg.mjs";
 import { computeLineTimes, wordsProportional, HEAD_SILENCE_SEC, TAIL_SILENCE_SEC } from "./lib/timing.mjs";
 import { chooseProvider } from "./lib/choose-provider.mjs";
-import { resolvePythonPath, runPythonBatch } from "./lib/pyenv.mjs";
-import { compareLine, isGrossMismatch, tailCleared } from "./lib/stt-compare.mjs";
+import { resolvePythonPath } from "./lib/pyenv.mjs";
+import { compareLine, isGrossMismatch, tailCleared, pronounceFolds } from "./lib/stt-compare.mjs";
+import { sttTranscribe, sttTranscribeLeveled } from "./lib/stt-engine.mjs";
 import { spokenText, stripCaptionBreaks } from "./lib/pronounce.mjs";
 import { forEngine, unknownMarks, applyDeliveryMark, EMOTIONS } from "./lib/tags.mjs";
-import { levelLineWav } from "./lib/line-level.mjs";
+import { levelLineWav, formatLevelReport } from "./lib/line-level.mjs";
 import { trimClipToVoice } from "./lib/clip-trim.mjs";
+import { stageRawTake, commitRawTake, discardRawTake, rawTakeProblems, rawTakeWarning } from "./lib/raw-take.mjs";
 import { MIN_BREATH_SEC } from "./lib/dub-timing.mjs";
 import { measureNarrationGaps, formatSilenceReport } from "./lib/silence-gate.mjs";
 import { leadSec, formatLeadReport, withLeadHandover } from "./lib/lead.mjs";
@@ -34,12 +36,26 @@ import {
   shiftForPause,
   readWavMono16,
   writeWavMono16,
+  previousSlots,
+  planRetakeFit,
+  retakeFitMessage,
+  pictureSlotSecs,
+  retimeRatioMessage,
+  fitColumn,
+  borrowedPauseRecord,
+  carriedBorrowedGap,
+  splitPlanByAudio,
+  SAME_LENGTH_SEC,
 } from "./voice/line-edit.mjs";
 import { alignCaptionWords } from "./voice/word-align.mjs";
-import { lineLang, groupByLangCode } from "./lib/line-lang.mjs";
+import { findClipDefects, describeDefects, defectCodes, waveformFlag, pitchTrack, endContour, wordContours, pitchSummary, PITCH_LIMITS } from "./voice/take-check.mjs";
+import { snapStartsToSound } from "./lib/word-onsets.mjs";
+import { readWav } from "./lib/wav-read.mjs";
+import { measureEdgeEnvelope, voicedSpanWithPads } from "./lib/clip-trim.mjs";
+import { lineLang } from "./lib/line-lang.mjs";
+import { listVoicesReport } from "./lib/voice-list.mjs";
 
-const here = path.dirname(fileURLToPath(import.meta.url));
-const STT_SCRIPT = path.join(here, "voice", "py", "stt_check.py");
+export { sttTranscribe };
 // Providers whose output is deterministic (same input -> same audio every
 // time), so re-synthesizing a flagged line for --retry-flagged is pointless.
 const DETERMINISTIC_PROVIDERS = new Set(["say", "file", "none"]);
@@ -53,15 +69,25 @@ with ffprobe, concatenates them with meta.gapMs of silence between lines
 voice/narration.wav (48kHz mono), and writes voice/timings.json.
 
 Each synthesized line is trimmed to its voiced span plus 0.05 s head and
-0.3 s tail (the untrimmed clip is kept once at voice/raw/<id>.wav). When the
+0.3 s tail, with a 20 ms fade-in and a 30 ms fade-out at the cuts (the untrimmed
+take is kept at voice/raw/<id>.wav and replaced when a new take is installed;
+timings.json records its hash as rawTake). When the
 narration is placed, the silence gate lists every pause over 1 s between
 voiced audio with the line ids around it; a pause the plan asks for (a line's
 pauseAfterMs) is listed as planned, not as a problem.
 
+--list-voices [<reel-dir>] [--lang <code>] [--provider typecast|elevenlabs]
+              prints the voices the provider's own list offers (id, name,
+              gender, age, use, languages) and exits; no synthesis. The
+              provider is --provider, else the reel's meta.voice.provider.
+              --lang keeps the voices whose list names that language; a
+              provider whose list has no language field shows every voice
+              and says so. The key is read from the environment, never printed.
+
 --provider overrides plan.json meta.voice.provider. If neither is given,
-voice.mjs auto-chooses (design.md §2.3): file (if voice/in/ has audio) ->
+voice.mjs auto-chooses: file (if voice/in/ has audio) ->
 qwen3 (if its python venv is found and meta.voice.refAudio is set) -> fish
--> elevenlabs -> melotts (if its python venv is found); with none of these it
+-> elevenlabs -> typecast -> melotts (if its python venv is found); with none of these it
 stops and lists what to set up. say (macOS) runs only when asked for. It prints
 which provider it picked and why.
 
@@ -74,29 +100,69 @@ speaker summary.
 --lines id,id  regenerate only these lines' audio; reuse the existing
                voice/line-<id>.wav for every other line (they must already
                exist). narration.wav and timings.json are always rebuilt in
-               full. A regenerated line keeps its old time slot (a shorter
-               take is padded, a longer one sped up by up to 10%), so the
-               picture does not change and render.mjs reuses every shot.
-               A take longer than that keeps its length; the lines after
-               it move, and their shots re-render. Every line not
-               regenerated keeps its measured word times (moved by how far
-               its start moved). In a dub folder (<reel>/dub/<code>/) the
+               full. A regenerated line keeps its old time slot (the old
+               clip plus the pause after it), so the picture does not change
+               and render.mjs reuses every shot. The take is fitted in the
+               order dub.mjs uses: trimmed, sped up by at most 10% when too
+               long, at least 0.5 s of breath kept after it, a voice-free gap
+               of at most 1.0 s (a much shorter take is slowed to 0.95x at
+               most, then reported). A take that needs more than 1.1x is
+               refused: the old clip stays, the take is kept at
+               voice/takes/<id>/refused-<stamp>.wav, the other lines install
+               and the run ends with an error naming the line — shorten its
+               text or say, or re-synthesize it. No take moves later lines.
+               Each re-take prints its length against the slot and against
+               the take it replaces, and its STT error rate against the old
+               one. Every line not regenerated keeps its measured word times
+               (moved by how far its start moved). In a dub folder (<reel>/dub/<code>/) the
                picture never moves and a regenerated line always keeps its
                own length (as --retime): dub.mjs fits it to the picture
                slot; run dub.mjs --lang <code> afterwards to re-place the lines.
 --retime      with --lines: let regenerated lines keep their own length
-               (use after a wording change, not a pronunciation fix). Implied
-               in a dub folder.
+               (use after a wording change, not a pronunciation fix); later
+               lines move and their shots re-render. Implied in a dub folder.
+               Each take installed this way prints its length against the slot
+               the line has on the picture as a ratio (1.357x = 35.7% over its
+               slot; in a dub folder the slot is the base reel's line slot).
+
+After a line is made, its own waveform and level are read, and the result is
+printed. Gate (voiceFlag, with a WARN naming the fix, no STT result clears it):
+HEAD (the start is cut, swallowed, or audible at once, or carries the end of the
+previous line) and TAIL (the line ends while it is still loud enough to hear),
+judged by perceived loudness (BS.1770 K-weighting, relative to the line's own level). Facts: DIP (a stretch 15 dB under the line's level), PAUSE
+(0.35 s or more of silence inside the line). Re-make a flagged line with
+--lines <id>, or --retry-flagged N. Caption words that follow a pause start where their sound begins, not
+where the STT pass put them (--stt-only leaves word times alone).
+
+--raw-status [--lines id,id]
+               report only: whether voice/raw/<id>.wav is the take each installed
+               clip was made from (timings.json records its hash as rawTake).
+               Exit code 1 when a raw take is stale or missing: do not rebuild
+               those lines from voice/raw.
+
+--pitch [--lines id,id] [--words]
+               report only: where the pitch goes in each installed line —
+               voiced share, median, range, and the end contour (rise / fall
+               / level in semitones against the voiced stretch before it);
+               --words adds each word's shape (rising, falling, level,
+               dipping, peaking, unvoiced; one word is one syllable in
+               Vietnamese and Chinese). A line whose text ends in a question
+               mark is listed with its measured end contour. Writes
+               out/pitch.json. It measures pitch; whether a rise, fall or tone
+               is the right one for the language is for the reader to judge.
 
 After synthesis, every synthesized line is checked by transcribing its own
-audio back (faster-whisper) and comparing it against the intended text —
-see references/voice.md "Did the voice say the line?". Flags a line
-voiceFlag: MISHEARD only on a gross mismatch (most of it wrong, or words dropped or added), and clears a
-provider's TAIL flag when the STT transcript shows the last syllable was
-not actually cut off.
+audio back (mlx-whisper by default) and comparing it against the intended text —
+see references/voice.md "Did the voice say the line?". Numbers (Korean,
+Chinese, Japanese too), Simplified/Traditional Chinese, kana and names in the
+pronunciation dictionary are folded to one spelling before comparing. Flags a line
+voiceFlag: MISHEARD only on a gross mismatch (most of it wrong, or words dropped or added).
+The STT check judges only whether the words came out wrong; clicks, cuts and
+abrupt edges are judged on the waveform (HEAD / TAIL below) and no transcript
+clears them.
 
 --no-stt            skip the speech-to-text check entirely.
---retry-flagged N   re-synthesize lines flagged MISHEARD/SHORT/TAIL up to N
+--retry-flagged N   re-synthesize lines flagged MISHEARD/SHORT/TAIL/HEAD up to N
                      more times, keeping the candidate with the lowest
                      character error rate (default 0; opt in only after reviewing
                      the advisory evidence; skipped for
@@ -104,9 +170,32 @@ not actually cut off.
 --stt-only           run the STT check on the existing voice/line-*.wav
                      files without synthesizing anything; updates
                      timings.json in place and does not touch narration.wav.
+                     Lines are compared with plan.json's current text.
+                     Word times are never rewritten for a line that already
+                     has measured ones; only the stt fields and voiceFlag change.
                      Transcribes in timings.json's lang, else plan.json
                      meta.lang. A line that now passes loses an old MISHEARD
-                     flag.
+                     flag. With --lines id,id only those lines are checked.
+                     The model loads once; timings.json is saved after every
+                     finished line of the first pass, and voice/stt-pending.json
+                     lists the lines left: a killed run, rerun with the same
+                     command, resumes with those lines only (delete the file
+                     to check every line). A line the second model answers
+                     keeps the transcript with the lower error rate; the
+                     model is recorded in the line's stt.model.
+
+STT engine (env): SVA_STT_PYTHON  python with mlx-whisper installed.
+                  SVA_STT_ENGINE  mlx (default) or groq (hosted; audio is
+                                  sent only when selected; key in GROQ_API_KEY,
+                                  never printed; no key = check skipped).
+                  SVA_STT_MODEL / SVA_STT_MODEL_RECHECK  first pass (small)
+                                  and the second pass (turbo) run only on
+                                  lines whose transcript is doubtful against
+                                  the plan text (SVA_STT_DOUBT_CER, 0.15).
+                  A model that is not downloaded skips the check with a note;
+                  node scripts/setup.mjs --stt-models downloads them.
+                  Take comparison (--takes, --pick-by stt) transcribes
+                  leveled copies, the loudness an installed line gets.
 
 --takes N            with --lines: synthesize N (2-5, default 3 when given
                      with no number) fresh takes of the same text per listed
@@ -133,7 +222,9 @@ not actually cut off.
                      writes the picked mark to plan.json so that speaker's
                      remaining lines are made in it: meta.voice.delivery for
                      the film-wide voice, else the voice.delivery of each of
-                     that speaker's lines.
+                     that speaker's lines. A plan line with no audio yet is
+                     left out of that rebuild (one note names it); make it
+                     next with --lines <ids> or a full pass.
 --use id=<wav>,id=<wav>
                      install finished line audio from anywhere (another
                      reel's voice/line-<id>.wav, a comparison folder, a
@@ -150,7 +241,13 @@ not actually cut off.
                      installs the chosen take right away; alone it reads the takes
                      already in voice/takes/ for the --lines ids (default:
                      every line in voice/takes/manifest.json). Prints the take
-                     table with the chosen take marked.
+                     table with the chosen take marked. The take installed now
+                     is a row of its own ("installed") and wins ties — if it
+                     scores best nothing is installed. A take that runs over
+                     the line's slot is never chosen (the table's slot column);
+                     when no take fits, that line is refused and the run ends
+                     with an error. Columns end (pitch at the line's end) and
+                     defects (HEAD, DIP, PAUSE) appear when audio shows any.
 --insert-pause <id>@<word>=<ms>[,...]
                      insert <ms> of silence into the finished line <id>
                      between word <word> (0-based index into that line's
@@ -163,6 +260,10 @@ not actually cut off.
 const PROVIDERS = ["say", "fish", "elevenlabs", "typecast", "file", "none", "qwen3", "melotts", "fishspeech"];
 
 async function loadProviderModule(name) {
+  // Only names from the fixed list reach the import path.
+  if (!PROVIDERS.includes(name)) {
+    throw new Error(`unknown voice provider "${name}" (known: ${PROVIDERS.join(", ")})`);
+  }
   try {
     return await import(`./voice/${name}.mjs`);
   } catch (e) {
@@ -187,8 +288,29 @@ function keepOldSlots(dir, flags) {
   return false;
 }
 
+/**
+ * --list-voices [<reel-dir>] [--lang <code>] [--provider <name>]: the provider's own voice list.
+ * The provider is --provider, else the reel's plan.json meta.voice.provider.
+ */
+async function runListVoices(positional, flags) {
+  try {
+    if (typeof flags["list-voices"] === "string") positional.unshift(flags["list-voices"]);
+    let providerName = flags.provider;
+    if (!providerName && positional.length) providerName = (loadPlan(abs(positional[0])).meta.voice || {}).provider;
+    if (!providerName) throw new Error("--list-voices needs a provider: --provider typecast|elevenlabs, or a reel whose plan.json sets meta.voice.provider");
+    const lang = typeof flags.lang === "string" ? flags.lang : undefined;
+    process.stdout.write(await listVoicesReport(providerName, await loadProviderModule(providerName), { lang }));
+  } catch (e) {
+    fail(e.message);
+  }
+}
+
 export async function main(argv) {
   const { positional, flags } = parseArgs(argv);
+  if (flags["list-voices"]) {
+    await runListVoices(positional, flags);
+    return;
+  }
   if (flags.help || flags.h || positional.length === 0) {
     printHelpAndExit(HELP, flags.help || flags.h ? 0 : 1);
     return;
@@ -198,7 +320,16 @@ export async function main(argv) {
 
   if (flags["stt-only"]) {
     try {
-      await runSttOnly(dir, paths);
+      await runSttOnly(dir, paths, flags);
+    } catch (e) {
+      fail(e.message);
+    }
+    return;
+  }
+
+  if (flags["raw-status"]) {
+    try {
+      runRawStatus(paths, flags);
     } catch (e) {
       fail(e.message);
     }
@@ -222,7 +353,18 @@ export async function main(argv) {
     return;
   }
 
-  let providerName = flags.provider || (plan.meta.voice && plan.meta.voice.provider);
+  if (flags.pitch) {
+    try {
+      runPitchReport(dir, paths, flags);
+    } catch (e) {
+      fail(e.message);
+    }
+    return;
+  }
+
+  let castVoices;
+  try { castVoices = loadCastVoices(plan, dir); } catch (e) { fail(e.message); return; }
+  let providerName = flags.provider || (plan.meta.voice && plan.meta.voice.provider) || castVoices.values().next().value?.provider;
   if (!providerName) {
     const choice = chooseProvider({
       hasVoiceInDir: fs.existsSync(path.join(paths.voiceDir, "in")),
@@ -254,7 +396,7 @@ export async function main(argv) {
   let providerMod;
   try {
     providerMod = await loadProviderModule(providerName);
-    lineVoices = await buildLineVoices(plan, providerName, loadProviderModule);
+    lineVoices = await buildLineVoices(plan, providerName, loadProviderModule, castVoices);
   } catch (e) {
     fail(e.message);
     return;
@@ -388,12 +530,15 @@ export async function main(argv) {
       keepTiming: keepOldSlots(dir, flags),
     });
     writeJson(paths.timingsJson, result.timings);
+    // A full pass rebuilt every line, so ids an earlier --stt-only left unchecked are stale.
+    if (!onlyLineIds) fs.rmSync(path.join(paths.voiceDir, STT_PENDING_FILE), { force: true });
     process.stdout.write(
       `wrote ${paths.narrationWav}\n` +
         `wrote ${paths.timingsJson}\n` +
         `provider: ${providerName}  lines: ${plan.lines.length}  duration: ${result.timings.duration.toFixed(3)}s\n`
     );
     if (onlyLineIds) process.stdout.write(partialRebuildNote(dir, result.moved));
+    failIfRefused(result);
   } catch (e) {
     fail(e.message);
   }
@@ -452,14 +597,20 @@ export async function synthesizeAll({
   // fields (estimated/voiceFlag) for lines outside the set; only lines in
   // the set are re-synthesized.
   let previousById = new Map();
+  let oldSlots = new Map();
   if (onlySet && fs.existsSync(paths.timingsJson)) {
     try {
       const prev = JSON.parse(fs.readFileSync(paths.timingsJson, "utf8"));
       previousById = new Map((prev.lines || []).map((l) => [l.id, l]));
+      oldSlots = slotsWithoutPauseBefore(prev.lines || [], lines, gapMs);
     } catch {
       previousById = new Map();
     }
   }
+  const pictureSlots = onlySet && !keepTiming ? pictureSlotSecs(dir, oldSlots) : new Map();
+  // Re-made lines that did not fit their slot (the old clip is back), and lines whose gap after them shrinks.
+  const refused = [];
+  const slotGaps = new Map();
 
   const headPath = path.join(paths.voiceDir, "_silence-head.wav");
   await makeSilence(headPath, headSec);
@@ -472,17 +623,37 @@ export async function synthesizeAll({
   // resolved voice, since a batch carries one voiceCfg. With --lines, only
   // the lines being regenerated are sent.
   const toSynth = lines.filter((line) => (!onlySet || onlySet.has(line.id)) && !(takeWavs && takeWavs.has(line.id)));
-  const batchResults = await synthBatches({ lines: toSynth, lineVoice, pronounce, lang, dir, voiceDir: paths.voiceDir });
+  // Batch providers write straight to voice/line-<id>.wav, so the old clips are put aside first.
+  const oldClips = backUpOldClips({ lines, paths, onlySet, keepTiming, previousById, oldSlots });
+  let batchResults;
+  try {
+    batchResults = await synthBatches({ lines: toSynth, lineVoice, pronounce, lang, dir, voiceDir: paths.voiceDir });
+  } catch (e) {
+    restoreOldClips(paths, oldClips);
+    throw e;
+  }
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
+    // The picture plays this long before the line starts (plan line `pauseBeforeMs`).
+    const beforeSec = pauseBeforeSec(line);
+    if (beforeSec > 0) {
+      const beforePath = path.join(paths.voiceDir, `_silence-before-${i}.wav`);
+      await makeSilence(beforePath, beforeSec);
+      segmentFiles.push({ kind: "silence", path: beforePath, durationSec: beforeSec });
+      offset += beforeSec;
+    }
     const lv = lineVoice(line);
     const spoken = engineText(line, pronounce, lv);
     // "|" is a caption-break marker (references/pipeline.md "Forced caption
     // breaks") — never spoken, never counted as a word or STT target.
     const timedText = stripCaptionBreaks(line.text);
     const outPath = path.join(paths.voiceDir, `line-${line.id}.wav`);
-    const reused = onlySet && !onlySet.has(line.id);
+    let reused = onlySet && !onlySet.has(line.id);
+    // The old clip waits under a unique name (backUpOldClips) while a re-made take is tried against its slot.
+    const oldClip = oldClips.get(line.id);
+    const oldSlot = oldClip ? oldClip.slot : null;
+    const oldClipBackup = oldClip ? oldClip.backup : null;
 
     let synthResult;
     if (reused) {
@@ -505,29 +676,44 @@ export async function synthesizeAll({
         throw new Error(`voice provider "${lv.providerName}" synthBatch returned no result for line "${line.id}"`);
       }
     } else {
-      synthResult = await synthOne(lv, { id: line.id, text: spoken, lang: lineLang(line, lang), outPath, reelDir: dir, lineStart: offset });
+      synthResult = await withUsageLog(paths.voiceDir, lv, [{ id: line.id, text: spoken }], () => synthOne(lv, { id: line.id, text: spoken, lang: lineLang(line, lang), outPath, reelDir: dir, lineStart: offset }));
     }
 
     const wavPath = synthResult.wavPath;
     // Edge trim first (the film's silence gate depends on it), then tempo.
-    const leadTrimSec = !reused && !(finishedIds && finishedIds.has(line.id)) ? await trimLineClip(paths, line.id, wavPath) : 0;
+    const trimmedHere = !reused && !(finishedIds && finishedIds.has(line.id));
+    const trimmed = trimmedHere ? await trimLineClip(paths, line.id, wavPath, rawSourceOf(takeWavs, line.id)) : { leadTrimSec: 0, staged: null };
+    const leadTrimSec = trimmed.leadTrimSec;
     if (!reused && !(finishedIds && finishedIds.has(line.id))) await applyLineTempo(wavPath, line, lv.voiceCfg, lv.provider);
     if (!reused && lv.voiceCfg.levelLines !== false) {
-      const leveled = await levelLineWav(wavPath);
-      process.stdout.write(`line "${line.id}" leveled: ${fmtLufs(leveled.beforeLufs)} -> ${fmtLufs(leveled.afterLufs)} LUFS\n`);
+      process.stdout.write(formatLevelReport(line.id, await levelLineWav(wavPath)));
     }
 
     const prevLine = previousById.get(line.id);
-    if (keepTiming && onlySet && !reused && prevLine) {
-      slots.set(line.id, prevLine.end - prevLine.start);
-      await fitToSlot(line.id, wavPath, slots.get(line.id));
+    let leadTrim = leadTrimSec;
+    let fitFactor = 1;
+    if (oldSlot) {
+      const fitted = await fitRetake(line.id, wavPath, oldSlot, { borrow: true });
+      if (fitted.ok) {
+        slots.set(line.id, oldSlot);
+        fitFactor = fitted.fit.atempoFactor;
+        fs.rmSync(oldClipBackup, { force: true });
+      } else {
+        refuseRetake(paths, line.id, wavPath, oldClipBackup);
+        refused.push(line.id);
+        reused = true;
+        leadTrim = 0;
+        synthResult = { wavPath };
+      }
     }
 
     const durationSec = await probeDuration(wavPath);
+    if (onlySet && !keepTiming && !reused) reportRetimeRatio(line.id, durationSec, pictureSlots, dir);
     const start = offset;
     const end = start + durationSec;
 
-    const measured = providerWords(timedText, synthResult, lineLang(line, lang), start, reused || (finishedIds && finishedIds.has(line.id)) ? 1 : tempoFactor(line, lv.voiceCfg, lv.provider), leadTrimSec);
+    const speedUp = reused || (finishedIds && finishedIds.has(line.id)) ? fitFactor : tempoFactor(line, lv.voiceCfg, lv.provider) * fitFactor;
+    const measured = providerWords(timedText, synthResult, lineLang(line, lang), start, speedUp, leadTrim);
     if (measured) providerTimed.add(line.id);
     // A line reused as-is keeps the word times measured on an earlier run.
     const carried = reused ? carriedWords(prevLine, timedText, start, stripCaptionBreaks) : null;
@@ -538,12 +724,16 @@ export async function synthesizeAll({
     const speaker = reused && prevLine && prevLine.voice ? prevLine.voice : speakerOf(lv);
     const lineOut = { id: line.id, text: line.text, start, end, words: timed.words, voice: speaker };
     if (line.lead) lineOut.lead = true;
+    if (beforeSec > 0) lineOut.pauseBeforeSec = beforeSec;
     if (line.lang) lineOut.lang = line.lang;
     if (timed.measured != null) lineOut.wordsMeasured = timed.measured;
     if (line.say != null) lineOut.say = line.say;
     if (reused && prevLine && prevLine.estimated) lineOut.estimated = true;
     if (reused && prevLine && prevLine.voiceFlag) lineOut.voiceFlag = prevLine.voiceFlag;
     if (reused && prevLine && prevLine.stt) lineOut.stt = prevLine.stt;
+    if (reused && prevLine && prevLine.clipFacts) lineOut.clipFacts = prevLine.clipFacts;
+    const rawTake = settleRawTake(trimmed.staged, reused, prevLine);
+    if (rawTake) lineOut.rawTake = rawTake;
     if (!reused && synthResult.estimated) lineOut.estimated = true;
     if (!reused && synthResult.flag && synthResult.flag !== "OK") {
       lineOut.voiceFlag = synthResult.flag;
@@ -561,6 +751,13 @@ export async function synthesizeAll({
       if (gapSec > plannedGapSec) warnings.push(`line "${line.id}": pause after it ${plannedGapSec.toFixed(2)}s raised to the ${MIN_BREATH_SEC}s minimum breath`);
       // The last lead line hands over to the story at HEAD + lead (the lead span, not a pause).
       if (hasLeadLines && line.lead && !lines[i + 1].lead) gapSec = Math.max(gapSec, HEAD_SILENCE_SEC + lead - end);
+      // A take that borrowed breath from the pause after it (this run, or an earlier one this line is
+      // reused from): the next line keeps its start, and timings.json records the pause for later rebuilds.
+      const borrowedSec = borrowedGapSec({ slot: slots.get(line.id), durationSec, reused, prevLine, plannedGapSec });
+      if (borrowedSec != null) {
+        gapSec = borrowedSec;
+        lineOut.borrowedPause = borrowedPauseRecord(plannedGapSec, borrowedSec);
+      }
       const gapPath = path.join(paths.voiceDir, `_silence-gap-${i}.wav`);
       await makeSilence(gapPath, gapSec);
       segmentFiles.push({ kind: "silence", path: gapPath, durationSec: gapSec });
@@ -575,21 +772,24 @@ export async function synthesizeAll({
   // STT round-trip check (references/voice.md "Did the voice say the
   // line?"): only on lines synthesized THIS run — a `--lines` pass leaves
   // reused lines' previous `stt` untouched (copied above).
-  const checkedIds = lines.filter((l) => !onlySet || onlySet.has(l.id)).map((l) => l.id);
+  const checkedIds = lines.filter((l) => (!onlySet || onlySet.has(l.id)) && !refused.includes(l.id)).map((l) => l.id);
+  // The waveform check runs first: its HEAD / TAIL flags are what --retry-flagged re-makes lines for.
+  await inspectMadeLines(paths, lineResults.filter((l) => checkedIds.includes(l.id)));
   if (sttEnabled && checkedIds.length) {
     const langCode = sttLangCode(lang);
     const linesById = new Map(lines.map((l) => [l.id, l]));
     // A line with its own `lang` is checked in that language.
     const codeOf = (id) => sttLangCode(lineLang(linesById.get(id), lang));
-    const entries = checkedIds.map((id) => ({ id, wav: `line-${id}.wav`, langCode: codeOf(id) }));
+    const entries = checkedIds.map((id) => sttEntry(linesById.get(id), `line-${id}.wav`, { langCode: codeOf(id), pronounce }));
     const stt = await sttTranscribe(paths.voiceDir, entries, langCode);
     if (stt.skipped) {
       process.stdout.write(`STT check skipped: ${stt.skipped}\n`);
     } else {
       for (const lineOut of lineResults) {
         if (!checkedIds.includes(lineOut.id)) continue;
-        applySttResult(lineOut, linesById.get(lineOut.id), stt.results.get(lineOut.id) || "", providerTimed.has(lineOut.id) ? null : stt.words.get(lineOut.id), codeOf(lineOut.id));
+        applySttResult(lineOut, linesById.get(lineOut.id), stt.results.get(lineOut.id) || "", providerTimed.has(lineOut.id) ? null : stt.words.get(lineOut.id), codeOf(lineOut.id), pronounce, stt.models && stt.models.get(lineOut.id));
       }
+      reportAgainstExisting(lineResults.filter((l) => checkedIds.includes(l.id)), previousById);
 
       if (retryFlagged > 0) {
         for (let round = 0; round < retryFlagged; round++) {
@@ -624,6 +824,7 @@ export async function synthesizeAll({
       offset = lineResults.length ? lineResults[lineResults.length - 1].end : offset;
     }
   }
+  snapMadeLines(paths, lineResults.filter((l) => checkedIds.includes(l.id)));
 
   const tailPath = path.join(paths.voiceDir, "_silence-tail.wav");
   await makeSilence(tailPath, tailSec);
@@ -649,7 +850,7 @@ export async function synthesizeAll({
   // around it; a pause the plan asks for (pauseAfterMs) is listed as planned.
   let silence = null;
   try {
-    silence = await measureNarrationGaps(paths.narrationWav, lineResults, withLeadHandover(lines, lineResults), { gapMs });
+    silence = await measureNarrationGaps(paths.narrationWav, lineResults, withLeadHandover(foldPauseBefore(lines, gapMs), lineResults), { gapMs });
     process.stdout.write(formatSilenceReport(silence) + formatLeadReport({ meta: planMeta, lines }));
   } catch (e) {
     process.stderr.write(`warning: silence gate could not measure ${paths.narrationWav}: ${e.message}\n`);
@@ -660,30 +861,57 @@ export async function synthesizeAll({
   // will re-render on the next render.mjs run.
   const moved = onlySet
     ? lineResults
-        .filter((l) => !onlySet.has(l.id) && previousById.has(l.id) && previousById.get(l.id).start !== l.start)
+        .filter((l) => !onlySet.has(l.id) && previousById.has(l.id) && Math.abs(previousById.get(l.id).start - l.start) > MOVED_TOLERANCE_SEC)
         .map((l) => l.id)
     : [];
 
   process.stdout.write(speakerSummary(lineResults) + "\n");
-  return { timings, moved, silence };
+  return { timings, moved, silence, refused };
+}
+
+/**
+ * The pause to lay after a line whose clip runs into the breath after it, or null when the plan's pause
+ * applies. A re-made take longer than its old clip takes the rest of its slot; a reused line keeps the
+ * pause its earlier run borrowed, while the plan's pause is still the one it was borrowed from.
+ */
+function borrowedGapSec({ slot, durationSec, reused, prevLine, plannedGapSec }) {
+  if (reused) return carriedBorrowedGap(prevLine, plannedGapSec);
+  if (slot && durationSec > slot.oldClipSec + SAME_LENGTH_SEC) return Math.max(0, slot.slotSec - durationSec);
+  return null;
 }
 
 /**
  * Edge trim of a freshly synthesized line (scripts/lib/clip-trim.mjs): cut to
- * the voiced span plus 0.05 s head / 0.3 s tail, in place. The untrimmed clip
- * is kept once at voice/raw/<id>.wav.
- * @returns {Promise<number>} the seconds removed from the clip's head
+ * the voiced span plus 0.05 s head / 0.3 s tail, in place. The untrimmed take is staged
+ * for voice/raw/<id>.wav (raw-take.mjs); settleRawTake installs it with the clip.
+ * @returns {Promise<{leadTrimSec:number, staged:object}>} the seconds removed from the clip's head, and the staged raw take
  */
-async function trimLineClip(paths, id, wavPath) {
-  const rawPath = path.join(paths.voiceDir, "raw", `${id}.wav`);
-  if (!fs.existsSync(rawPath)) {
-    ensureDir(path.dirname(rawPath));
-    fs.copyFileSync(wavPath, rawPath);
-  }
+async function trimLineClip(paths, id, wavPath, source = "synth") {
+  const staged = stageRawTake(paths.voiceDir, id, wavPath, source);
   const trimmedPath = `${wavPath}.trim.wav`;
   const t = await trimClipToVoice(wavPath, trimmedPath);
   fs.renameSync(trimmedPath, wavPath);
-  return t.leadTrimSec;
+  return { leadTrimSec: t.leadTrimSec, staged };
+}
+
+/** Where a line's take came from: its --pick / --takes file, else a fresh synthesis. */
+function rawSourceOf(takeWavs, id) {
+  return takeWavs && takeWavs.has(id) ? `takes/${path.basename(takeWavs.get(id))}` : "synth";
+}
+
+/**
+ * The line's `rawTake` record once its clip is settled: a staged take of a clip that was installed
+ * becomes voice/raw/<id>.wav and is recorded; a staged take of a clip that was not (the old clip
+ * came back) is dropped and the old record stays; a reused line keeps its record.
+ * @returns {object|undefined}
+ */
+function settleRawTake(staged, reused, prevLine) {
+  if (staged && !reused) {
+    commitRawTake(staged);
+    return staged.record;
+  }
+  if (staged) discardRawTake(staged);
+  return reused && prevLine ? prevLine.rawTake : undefined;
 }
 
 /** The text a provider is sent for `line`: spoken form, delivery mark, engine tags. */
@@ -730,9 +958,43 @@ export async function synthBatches({ lines, lineVoice, pronounce, lang, dir, voi
   }
   const results = new Map();
   for (const { lv, gLang, items } of groups.values()) {
-    for (const r of await lv.provider.synthBatch(items, { lang: gLang, voiceCfg: lv.voiceCfg, reelDir: dir })) results.set(r.id, r);
+    const done = await withUsageLog(voiceDir, lv, items, () => lv.provider.synthBatch(items, { lang: gLang, voiceCfg: lv.voiceCfg, reelDir: dir }));
+    for (const r of done) results.set(r.id, r);
   }
   return results;
+}
+
+const TTS_USAGE_FILE = "tts-usage.jsonl";
+
+/**
+ * Runs one synthesis request and appends a line to voice/tts-usage.jsonl for the cost report:
+ * {ts, provider, model, voiceId, chars, audioSec, lineIds, cost}. `chars` is the text sent, `audioSec`
+ * the audio that came back, `cost` what the provider reported (a result's `cost`) else null. No keys, no
+ * request bodies. A failed request records nothing; a log that cannot be written is a note, never a stop.
+ */
+async function withUsageLog(voiceDir, lv, items, run) {
+  const out = await run();
+  try {
+    const results = (Array.isArray(out) ? out : [out]).filter(Boolean);
+    let audioSec = 0;
+    for (const r of results) if (r.wavPath && fs.existsSync(r.wavPath)) audioSec += await probeDuration(r.wavPath);
+    const costs = results.map((r) => r.cost).filter((c) => Number.isFinite(c));
+    const entry = {
+      ts: new Date().toISOString(),
+      provider: lv.providerName,
+      model: lv.voiceCfg.model ?? null,
+      voiceId: lv.voiceCfg.voiceId ?? null,
+      chars: items.reduce((sum, it) => sum + String(it.text).length, 0),
+      audioSec: Math.round(audioSec * 1000) / 1000,
+      lineIds: items.map((it) => it.id),
+      cost: costs.length ? costs.reduce((a, b) => a + b, 0) : null,
+    };
+    ensureDir(voiceDir);
+    fs.appendFileSync(path.join(voiceDir, TTS_USAGE_FILE), `${JSON.stringify(entry)}\n`);
+  } catch (e) {
+    process.stderr.write(`note: could not record TTS usage (${e.message})\n`);
+  }
+  return out;
 }
 
 // Cloning providers copy the reference clip; a clip outside this range is
@@ -754,56 +1016,23 @@ async function checkRefAudioLength(refAudio, reelDir) {
 }
 
 function needsRetry(voiceFlag) {
-  return voiceFlag === "MISHEARD" || voiceFlag === "SHORT" || voiceFlag === "TAIL";
+  return voiceFlag === "MISHEARD" || voiceFlag === "SHORT" || voiceFlag === "TAIL" || voiceFlag === "HEAD";
 }
 
 /**
- * Transcribe `entries` ({id, wav} — wav relative to voiceDir or absolute)
- * with faster-whisper (scripts/voice/py/stt_check.py), model loaded once
- * for the whole batch. Never throws: missing python / faster-whisper comes
- * back as `{skipped: reason}` so the voice step never fails because of this
- * check. An entry's own `langCode` (a line with its own `lang`) wins over `langCode`.
- * `deps` (tests): {pythonPath, runPythonBatch} replace the real interpreter and runner.
- * @returns {Promise<{results: Map<string,string>} | {skipped: string}>}
+ * What sttTranscribe takes for one clip of `line`: the audio, its language, and the
+ * target text and name respellings the second pass uses to find doubtful lines.
+ * `id` defaults to the line's id (a take uses "<id>-<k>").
  */
-export async function sttTranscribe(voiceDir, entries, langCode, deps = {}) {
-  const pythonPath = deps.pythonPath || resolvePythonPath("SVA_STT_PYTHON", null);
-  if (!pythonPath) {
-    return { skipped: "no python found (set SVA_STT_PYTHON to a venv with faster-whisper installed)" };
-  }
-  if (!entries.length) return { results: new Map(), words: new Map() };
-
-  // One transcription run per language: an entry's own `langCode` (a line with
-  // its own `lang`) wins over the film's `langCode`.
-  const merged = { results: new Map(), words: new Map() };
-  for (const [code, group] of groupByLangCode(entries, langCode)) {
-    const one = await sttTranscribeOne(pythonPath, voiceDir, group.map(({ id, wav }) => ({ id, wav })), code, deps.runPythonBatch || runPythonBatch);
-    if (one.skipped) return one;
-    for (const [k, v] of one.results) merged.results.set(k, v);
-    for (const [k, v] of one.words) merged.words.set(k, v);
-  }
-  return merged;
-}
-
-async function sttTranscribeOne(pythonPath, voiceDir, entries, langCode, runBatch) {
-  const jobDir = fs.mkdtempSync(path.join(voiceDir, ".stt-"));
-  const jobPath = path.join(jobDir, "lines.json");
-  fs.writeFileSync(jobPath, JSON.stringify(entries), "utf8");
-  try {
-    const { stdout } = await runBatch(pythonPath, [STT_SCRIPT, voiceDir, jobPath], {
-      HF_HUB_OFFLINE: "1",
-      SVA_STT_LANG: langCode,
-    });
-    const arr = JSON.parse(stdout.trim() || "[]");
-    return {
-      results: new Map(arr.map((r) => [r.id, r.heard])),
-      words: new Map(arr.map((r) => [r.id, r.words || []])),
-    };
-  } catch (e) {
-    return { skipped: `stt check failed to run (${e.message.split("\n")[0]})` };
-  } finally {
-    fs.rmSync(jobDir, { recursive: true, force: true });
-  }
+function sttEntry(line, wav, { langCode, pronounce, id = line.id }) {
+  return {
+    id,
+    wav,
+    langCode,
+    text: stripCaptionBreaks(line.text),
+    say: line.say != null ? stripCaptionBreaks(line.say) : undefined,
+    names: pronounceFolds(langCode, pronounce, line.pronounce),
+  };
 }
 
 /**
@@ -826,14 +1055,18 @@ function providerWords(timedText, synthResult, lang, lineStart, speedUp = 1, lea
 
 /**
  * Compare `heard` against `line.text`/`line.say`, write `lineOut.stt`, and
- * update `lineOut.voiceFlag`: clears a provider TAIL flag when the STT
- * transcript shows the tail wasn't actually cut off, sets MISHEARD only on a
- * gross mismatch, and clears a MISHEARD left by an earlier check when this
- * one passes (references/voice.md). With `sttWords` (clip-relative) the caption
+ * update `lineOut.voiceFlag`: sets MISHEARD only on a gross mismatch, and
+ * clears a MISHEARD left by an earlier check when this one passes. A HEAD or
+ * TAIL flag is waveform evidence and is never cleared here: the transcript
+ * says whether the words came out wrong, not whether the clip clicks or is
+ * cut (references/voice.md). With `sttWords` (clip-relative) the caption
  * words take the heard times (alignCaptionWords), and `lineOut.wordsMeasured`
- * counts the words measured rather than interpolated.
+ * counts the words measured rather than interpolated. `pronounce` is the film's
+ * pronunciation dictionary: a name spoken as its respelling is not an error.
+ * `model` (optional) is recorded as `lineOut.stt.model`: the STT model the transcript came from.
  */
-export function applySttResult(lineOut, line, heard, sttWords, langCode) {
+export function applySttResult(lineOut, line, heard, sttWords, langCode, pronounce = null, model = null) {
+  const names = pronounceFolds(langCode, pronounce, line.pronounce);
   const timedText = stripCaptionBreaks(line.text);
   const timedSay = line.say != null ? stripCaptionBreaks(line.say) : line.say;
   if (sttWords && sttWords.length) {
@@ -843,8 +1076,10 @@ export function applySttResult(lineOut, line, heard, sttWords, langCode) {
       lineOut.wordsMeasured = aligned.measured;
     }
   }
-  const cmp = compareLine({ text: timedText, say: timedSay, heard });
+  const cmp = compareLine({ text: timedText, say: timedSay, heard, lang: langCode, names });
   const targetText = cmp.against === "say" ? timedSay : timedText;
+  const gross = isGrossMismatch(targetText, heard, cmp.cer, langCode, names);
+  const tailOk = tailCleared(targetText, heard, langCode, names);
   lineOut.stt = {
     advisory: true,
     target: targetText,
@@ -852,15 +1087,12 @@ export function applySttResult(lineOut, line, heard, sttWords, langCode) {
     heard,
     cer: cmp.cer,
     diffs: cmp.diffs,
-    grossMismatch: isGrossMismatch(targetText, heard, cmp.cer),
-    tailMatched: tailCleared(targetText, heard),
+    grossMismatch: gross,
+    tailMatched: tailOk,
   };
+  if (model) lineOut.stt.model = model;
 
-  if (lineOut.voiceFlag === "TAIL" && tailCleared(targetText, heard)) {
-    delete lineOut.voiceFlag;
-    lineOut.stt.tailCleared = true;
-  }
-  if (isGrossMismatch(targetText, heard, cmp.cer)) {
+  if (gross) {
     lineOut.voiceFlag = "MISHEARD";
   } else if (lineOut.voiceFlag === "MISHEARD") {
     delete lineOut.voiceFlag;
@@ -887,6 +1119,9 @@ function shiftLine(lineOut, deltaSec) {
 async function retryFlaggedLines({ flagged, lineResults, linesById, lineVoice, pronounce, lang: filmLang, langCode: filmLangCode, dir, paths, slots, providerTimed }) {
   for (const lineOut of flagged) {
     const line = linesById.get(lineOut.id);
+    const slot = slots.get(lineOut.id);
+    // A take that borrowed breath from the pause after it has no room for a different length.
+    if (slot && lineOut.end - lineOut.start > slot.oldClipSec + SAME_LENGTH_SEC) continue;
     // a line with its own `lang` is re-made and re-checked in that language
     const lang = lineLang(line, filmLang);
     const langCode = line.lang ? sttLangCode(line.lang) : filmLangCode;
@@ -901,32 +1136,36 @@ async function retryFlaggedLines({ flagged, lineResults, linesById, lineVoice, p
 
     let synthResult;
     if (typeof provider.synthBatch === "function") {
-      const res = await provider.synthBatch([{ id: line.id, text: spoken, outPath }], {
-        lang,
-        voiceCfg,
-        reelDir: dir,
-      });
+      const items = [{ id: line.id, text: spoken, outPath }];
+      const res = await withUsageLog(paths.voiceDir, lv, items, () => provider.synthBatch(items, { lang, voiceCfg, reelDir: dir }));
       synthResult = res.find((r) => r.id === line.id);
     } else {
-      synthResult = await synthOne(lv, { id: line.id, text: spoken, lang, outPath, reelDir: dir, lineStart: lineOut.start });
+      synthResult = await withUsageLog(paths.voiceDir, lv, [{ id: line.id, text: spoken }], () => synthOne(lv, { id: line.id, text: spoken, lang, outPath, reelDir: dir, lineStart: lineOut.start }));
     }
 
     const wavPath = synthResult.wavPath;
-    const leadTrimSec = await trimLineClip(paths, line.id, wavPath);
+    const { leadTrimSec, staged } = await trimLineClip(paths, line.id, wavPath);
     await applyLineTempo(wavPath, line, voiceCfg, provider);
     if (voiceCfg.levelLines !== false) {
-      const leveled = await levelLineWav(wavPath);
-      process.stdout.write(`line "${line.id}" leveled: ${fmtLufs(leveled.beforeLufs)} -> ${fmtLufs(leveled.afterLufs)} LUFS\n`);
+      process.stdout.write(formatLevelReport(line.id, await levelLineWav(wavPath)));
     }
-    if (slots.has(line.id)) await fitToSlot(line.id, wavPath, slots.get(line.id));
+    // A retry that does not fit the slot is not a candidate: the previous best stays and the later lines do not move.
+    if (slots.has(line.id) && !(await fitRetake(line.id, wavPath, slots.get(line.id), { borrow: false })).ok) {
+      discardRawTake(staged);
+      fs.copyFileSync(backupPath, outPath);
+      fs.rmSync(backupPath, { force: true });
+      continue;
+    }
 
     const newDur = await probeDuration(wavPath);
-    const sttRes = await sttTranscribe(paths.voiceDir, [{ id: line.id, wav: `line-${line.id}.wav` }], langCode);
+    const sttRes = await sttTranscribe(paths.voiceDir, [sttEntry(line, `line-${line.id}.wav`, { langCode, pronounce })], langCode);
     const newHeard = sttRes.results ? sttRes.results.get(line.id) || "" : "";
-    const newCer = sttRes.results ? compareLine({ text: timedText, say: timedSay, heard: newHeard }).cer : Infinity;
+    const newCer = sttRes.results ? compareLine({ text: timedText, say: timedSay, heard: newHeard, lang: langCode, names: pronounceFolds(langCode, pronounce, line.pronounce) }).cer : Infinity;
     const oldCer = lineOut.stt ? lineOut.stt.cer : Infinity;
 
-    if (newCer < oldCer) {
+    const newClip = readLineClip(paths, line.id);
+    const newFacts = newClip ? findClipDefects(newClip.samples, newClip.sampleRate) : null;
+    if (keepsRetake({ newCer, oldCer, oldFlag: waveformFlag(lineOut.clipFacts), newFlag: waveformFlag(newFacts) })) {
       const delta = newDur - (lineOut.end - lineOut.start);
       lineOut.end = lineOut.start + newDur;
       const idx = lineResults.indexOf(lineOut);
@@ -938,13 +1177,29 @@ async function retryFlaggedLines({ flagged, lineResults, linesById, lineVoice, p
       lineOut.wordsMeasured = measured ? measured.measured : 0;
       delete lineOut.voiceFlag;
       if (synthResult.flag && synthResult.flag !== "OK") lineOut.voiceFlag = synthResult.flag;
-      applySttResult(lineOut, line, newHeard, measured ? null : sttRes.words.get(line.id), langCode);
+      delete lineOut.clipFacts;
+      if (newFacts) lineOut.clipFacts = newFacts;
+      reportClipDefects(lineOut, newFacts);
+      applySttResult(lineOut, line, newHeard, measured ? null : sttRes.words.get(line.id), langCode, pronounce, sttRes.models && sttRes.models.get(line.id));
+      commitRawTake(staged);
+      lineOut.rawTake = staged.record;
       fs.rmSync(backupPath, { force: true });
     } else {
+      discardRawTake(staged);
       fs.copyFileSync(backupPath, outPath);
       fs.rmSync(backupPath, { force: true });
     }
   }
+}
+
+/**
+ * Whether a --retry-flagged take replaces the best one so far: never when it adds a waveform flag
+ * (HEAD / TAIL) the old take did not have; else when its error rate is lower, or when it clears a
+ * waveform flag at no worse an error rate.
+ */
+export function keepsRetake({ newCer, oldCer, oldFlag, newFlag }) {
+  if (newFlag && !oldFlag) return false;
+  return newCer < oldCer || (!!oldFlag && !newFlag && newCer <= oldCer);
 }
 
 /** Prints a compact `id | cer | flag | diffs` table for the checked lines. */
@@ -960,18 +1215,42 @@ function printSttTable(checkedLines) {
   }
 }
 
+/** timings.json written whole through a temp name, so an interrupted write never leaves half a file. */
+function writeTimingsAtomic(file, timings) {
+  const tmp = `${file}.${process.pid}-${process.hrtime.bigint()}.tmp`;
+  writeJson(tmp, timings);
+  fs.renameSync(tmp, file);
+}
+
+/** The timings lines `--stt-only` checks: the `--lines` ids, else every line. */
+function sttOnlyLines(timingsLines, linesFlag) {
+  if (linesFlag === undefined) return timingsLines;
+  if (typeof linesFlag !== "string") throw new Error("--stt-only: --lines needs id,id");
+  const wanted = linesFlag.split(",").map((s) => s.trim()).filter(Boolean);
+  const known = new Set(timingsLines.map((l) => l.id));
+  const unknown = wanted.filter((id) => !known.has(id));
+  if (unknown.length) throw new Error(`--stt-only: --lines references unknown line id(s): ${unknown.join(", ")}`);
+  const set = new Set(wanted);
+  return timingsLines.filter((l) => set.has(l.id));
+}
+
 /**
- * `--stt-only`: run the STT check against existing voice/line-*.wav files
- * without synthesizing anything — updates timings.json in place. Useful
- * standalone (no provider/python-for-TTS needed) and for the skill to
- * re-verify a previously synthesized reel.
+ * `--stt-only [--lines id,id]`: run the STT check against existing voice/line-*.wav
+ * files without synthesizing anything — updates timings.json in place. Each line is
+ * compared with plan.json's CURRENT text (the timings line's text only when the plan
+ * no longer has the line). The model loads once per run; timings.json is saved as
+ * soon as the first pass has results, so a run that stops midway keeps the lines it
+ * finished and prints the ones left for a rerun.
  */
-async function runSttOnly(dir, paths) {
+async function runSttOnly(dir, paths, flags = {}) {
   if (!fs.existsSync(paths.timingsJson)) {
     throw new Error(`--stt-only: no ${paths.timingsJson} — run a full voice.mjs pass first`);
   }
   const timings = readJson(paths.timingsJson);
-  const lines = timings.lines || [];
+  const pendingFile = path.join(paths.voiceDir, STT_PENDING_FILE);
+  const pending = openSttPending(pendingFile, timings.lines || [], flags.lines);
+  const lines = pending.resumed ? (timings.lines || []).filter((l) => pending.ids.has(l.id)) : sttOnlyLines(timings.lines || [], flags.lines);
+  if (pending.resumed) process.stdout.write(`resuming an interrupted --stt-only: ${lines.length} line(s) left (delete ${pendingFile} to check every line)\n`);
   const missing = lines.filter((l) => !fs.existsSync(path.join(paths.voiceDir, `line-${l.id}.wav`)));
   if (missing.length) {
     throw new Error(`--stt-only: missing voice/line-<id>.wav for: ${missing.map((l) => l.id).join(", ")}`);
@@ -983,24 +1262,99 @@ async function runSttOnly(dir, paths) {
   } catch {
     plan = null;
   }
+  const planLines = new Map(((plan && plan.lines) || []).map((l) => [l.id, l]));
+  const pronounce = plan && plan.meta ? plan.meta.pronounce : null;
   const langCode = sttLangCode(sttOnlyLang(timings, plan));
   process.stdout.write(`STT language: ${langCode}\n`);
-  const codeOf = (l) => (l.lang ? sttLangCode(l.lang) : langCode);
-  const entries = lines.map((l) => ({ id: l.id, wav: `line-${l.id}.wav`, langCode: codeOf(l) }));
-  const stt = await sttTranscribe(paths.voiceDir, entries, langCode);
+  const targetOf = (l) => planLines.get(l.id) || l;
+  const codeOf = (l) => {
+    const own = targetOf(l).lang || l.lang;
+    return own ? sttLangCode(own) : langCode;
+  };
+  const entries = lines.map((l) => sttEntry(targetOf(l), `line-${l.id}.wav`, { id: l.id, langCode: codeOf(l), pronounce }));
+
+  const checked = new Set();
+  const applied = new Map();
+  const save = ({ results, words, models }) => {
+    for (const lineOut of lines) {
+      if (!results.has(lineOut.id)) continue;
+      const heard = results.get(lineOut.id) || "";
+      // Progress saves repeat finished lines; a line is applied again only when its transcript changed (second pass).
+      if (applied.get(lineOut.id) === heard) continue;
+      const engineTimed = ["elevenlabs", "typecast"].includes((lineOut.voice && lineOut.voice.provider) || timings.provider);
+      applySttResult(lineOut, targetOf(lineOut), heard, sttOnlyWords(lineOut, engineTimed, words.get(lineOut.id)), codeOf(lineOut), pronounce, models && models.get(lineOut.id));
+      applied.set(lineOut.id, heard);
+      checked.add(lineOut.id);
+    }
+    writeTimingsAtomic(paths.timingsJson, timings);
+    pending.done(checked);
+  };
+  const stt = await sttTranscribe(paths.voiceDir, entries, langCode, { allowPartial: true, onProgress: save });
   if (stt.skipped) {
     process.stdout.write(`STT check skipped: ${stt.skipped}\n`);
     return;
   }
-
-  // ElevenLabs and Typecast lines keep the word times the engine measured; the rest take the speech-to-text ones.
-  for (const lineOut of lines) {
-    const engineTimed = ["elevenlabs", "typecast"].includes((lineOut.voice && lineOut.voice.provider) || timings.provider);
-    applySttResult(lineOut, lineOut, stt.results.get(lineOut.id) || "", engineTimed ? null : stt.words.get(lineOut.id), codeOf(lineOut));
-  }
-  printSttTable(lines);
-  writeJson(paths.timingsJson, timings);
+  save(stt);
+  printSttTable(lines.filter((l) => checked.has(l.id)));
   process.stdout.write(`wrote ${paths.timingsJson}\n`);
+  if (stt.incomplete) reportUnchecked(stt, dir);
+}
+
+/**
+ * The speech-to-text word times `--stt-only` may write into a line: only for a line whose words
+ * were never measured (spread evenly). A line with engine-measured or already measured words
+ * keeps them, so highlights and effects keyed to those words do not move on a check run.
+ * @returns {object[]|null}
+ */
+export function sttOnlyWords(lineOut, engineTimed, sttWords) {
+  if (engineTimed || lineOut.wordsMeasured > 0) return null;
+  return sttWords || null;
+}
+
+const STT_PENDING_FILE = "stt-pending.json";
+
+/**
+ * The lines a `--stt-only` run has not checked yet, kept in voice/stt-pending.json so a run that
+ * was killed resumes where it stopped. A run without `--lines` resumes from an existing file,
+ * else starts one covering every line; a run with `--lines` only crosses its lines off an
+ * existing file. The file is deleted when nothing is left.
+ * @returns {{ids:Set<string>, resumed:boolean, done:(checked:Set<string>)=>void}}
+ */
+function openSttPending(file, timingsLines, linesFlag) {
+  const known = new Set(timingsLines.map((l) => l.id));
+  let ids = null;
+  try {
+    ids = new Set(JSON.parse(fs.readFileSync(file, "utf8")).ids.filter((id) => known.has(id)));
+  } catch {
+    ids = null;
+  }
+  const resumed = linesFlag === undefined && ids !== null && ids.size > 0;
+  if (linesFlag === undefined && !resumed) ids = new Set(known);
+  const write = () => {
+    if (!ids || !ids.size) {
+      fs.rmSync(file, { force: true });
+      return;
+    }
+    const tmp = `${file}.tmp`;
+    fs.writeFileSync(tmp, JSON.stringify({ ids: [...ids] }), "utf8");
+    fs.renameSync(tmp, file);
+  };
+  if (ids && !resumed) write();
+  return {
+    ids: ids || new Set(),
+    resumed,
+    done(checked) {
+      if (!ids) return;
+      for (const id of checked) ids.delete(id);
+      write();
+    },
+  };
+}
+
+/** What an interrupted `--stt-only` did not reach, and the command that finishes it. */
+function reportUnchecked(stt, dir) {
+  process.stdout.write(`STT stopped early: ${stt.incomplete}\n`);
+  process.stdout.write(`not checked: ${stt.missing.join(", ")} — rerun: voice.mjs ${dir} --stt-only --lines ${stt.missing.join(",")}\n`);
 }
 
 // A local voice at its own speed sounds slow in a Short. The same rate for every
@@ -1047,9 +1401,10 @@ export function mergedVoice(meta, line) {
  *   key: one string per distinct resolved voice (provider + settings), for
  *   grouping batch synthesis; a typecast line with its own emotion has a key of its own.
  */
-export function resolveLineVoice(meta, line, baseProvider) {
-  const voice = mergedVoice(meta, line);
-  const providerName = (line && line.voice && line.voice.provider) || baseProvider;
+export function resolveLineVoice(meta, line, baseProvider, castVoice) {
+  const defaults = castVoice ? Object.fromEntries(Object.entries(meta.voice || {}).filter(([key]) => !["provider", "voiceId", "refAudio", "refText", "refTokens", "model"].includes(key))) : meta.voice;
+  const voice = castVoice ? { ...defaults, ...castVoice, ...(line.voice || {}) } : mergedVoice(meta, line);
+  const providerName = castVoice?.provider || (line && line.voice && line.voice.provider) || baseProvider;
   const filmCfg = withFishConfidentDelivery(withShortsRate({ ...meta, voice }), meta, providerName);
   // Typecast sets emotion per request, so a line whose own `emotion` differs from the voice's
   // is made in its own request (key carries the line id), outside the one-read batch.
@@ -1093,11 +1448,11 @@ export function lineSpeed(meta, line) {
  * @param {(name: string) => Promise<object>} loadProvider
  * @returns {Promise<Map<string, {providerName, provider, voiceCfg, key}>>}
  */
-export async function buildLineVoices(plan, baseProvider, loadProvider) {
+export async function buildLineVoices(plan, baseProvider, loadProvider, castVoices = new Map()) {
   const modules = new Map();
   const out = new Map();
   for (const line of plan.lines) {
-    const v = resolveLineVoice(plan.meta, line, baseProvider);
+    const v = resolveLineVoice(plan.meta, line, baseProvider, castVoices.get(line.id));
     if (!PROVIDERS.includes(v.providerName)) {
       throw new Error(`line "${line.id}": unknown provider "${v.providerName}", expected one of: ${PROVIDERS.join(", ")}`);
     }
@@ -1161,11 +1516,6 @@ export function lineTempo(line, voiceCfg, provider) {
   return null;
 }
 
-/** "-16.0" or "n/a" for the leveling log line. */
-function fmtLufs(lufs) {
-  return lufs == null || !Number.isFinite(lufs) ? "n/a" : lufs.toFixed(1);
-}
-
 async function applyLineTempo(wavPath, line, voiceCfg, provider) {
   const tempo = lineTempo(line, voiceCfg, provider);
   if (!tempo || tempo.factor === 1) return;
@@ -1175,60 +1525,261 @@ async function applyLineTempo(wavPath, line, voiceCfg, provider) {
   fs.rmSync(preTempoPath, { force: true });
 }
 
-// A regenerated line keeps its old slot when the new take is close in length,
-// so the picture does not move: a shorter take is padded with silence, a
-// longer one is sped up by at most this factor. A take longer than that keeps
-// its own length and the lines after it shift.
-const MAX_FIT_SPEEDUP = 1.1;
-const SLOT_MATCH_SEC = 0.005;
+// A regenerated base-language line keeps its old slot (the picture does not move), fitted in the
+// order dub.mjs fits a language: trim, speed up by at most 10%, keep at least 0.5 s of breath, a
+// voice-free gap of at most 1.0 s, otherwise the voice is made again (planRetakeFit). A take that
+// still needs more speed than that is refused; nothing shifts the lines after it.
 
-/**
- * The line printed when a re-made or picked take is fitted to its old slot,
- * so a padded or sped-up take is not mistaken for the wrong take.
- * @returns {string|null} null when the take already matches the slot
- */
-export function slotFitMessage(id, takeSec, slotSec) {
-  if (Math.abs(takeSec - slotSec) < SLOT_MATCH_SEC) return null;
-  const head = `${id}: take ${takeSec.toFixed(2)}s`;
-  if (takeSec / slotSec > MAX_FIT_SPEEDUP) {
-    return `${head} keeps its own length, longer than its slot ${slotSec.toFixed(2)}s — later lines shift +${(takeSec - slotSec).toFixed(2)}s`;
-  }
-  const how = takeSec > slotSec ? `sped up ${(takeSec / slotSec).toFixed(2)}x` : `+${(slotSec - takeSec).toFixed(2)}s silence`;
-  return `${head} fitted to its slot ${slotSec.toFixed(2)}s (${how})`;
+/** A name that is unique per call (µs clock + pid), for files a run leaves beside a clip. */
+function uniqueSuffix() {
+  return `${process.pid}-${process.hrtime.bigint()}`;
 }
 
 /**
- * Fit line `id`'s take at `wavPath` into `slotSec` in place when it can, and
- * print what was done (slotFitMessage).
- * @returns {Promise<boolean>} whether the take now fills the slot
+ * Fit the re-made take at `wavPath` into `slot` in place and print how it compares with the slot and
+ * with the take it replaces. The clip ends at the old clip's length (padded, sped up or slowed), so the
+ * next line does not move; with `borrow` a take that needs some of the breath after it may stay longer
+ * and the caller shortens the gap after it by the same amount.
+ * @returns {Promise<{ok:boolean, fit:object}>} ok false = refused, the file is untouched
  */
-async function fitToSlot(id, wavPath, slotSec) {
+export async function fitRetake(id, wavPath, slot, { borrow }) {
   const dur = await probeDuration(wavPath);
-  const message = slotFitMessage(id, dur, slotSec);
-  if (message) process.stdout.write(message + "\n");
-  if (Math.abs(dur - slotSec) < SLOT_MATCH_SEC) return true;
-  if (dur / slotSec > MAX_FIT_SPEEDUP) return false;
-  const prefitPath = wavPath + ".prefit.wav";
+  const fit = planRetakeFit(dur, slot);
+  process.stdout.write(retakeFitMessage(id, dur, slot, fit) + "\n");
+  if (!fit.ok) return { ok: false, fit };
+  const fillsOld = fit.actualDurationSec <= slot.oldClipSec + SAME_LENGTH_SEC;
+  if (!fillsOld && !borrow) {
+    process.stdout.write(`${id}: this take needs breath that the line before it keeps — not installed\n`);
+    return { ok: false, fit };
+  }
+  const tempo = Math.abs(fit.atempoFactor - 1) > 1e-4;
+  const slotSamples = Math.round(slot.oldClipSec * FIT_SAMPLE_RATE);
+  if (!tempo && fillsOld && readWav(wavPath).samples.length === slotSamples) return { ok: true, fit };
+  const prefitPath = `${wavPath}.prefit-${uniqueSuffix()}.wav`;
   fs.renameSync(wavPath, prefitPath);
-  const filter = dur > slotSec ? `atempo=${(dur / slotSec).toFixed(4)},apad` : "apad";
-  await ffmpeg([
-    "-y",
-    "-i",
-    prefitPath,
-    "-filter:a",
-    filter,
-    "-t",
-    slotSec.toFixed(4),
-    "-ar",
-    "48000",
-    "-ac",
-    "1",
-    "-c:a",
-    "pcm_s16le",
-    wavPath,
-  ]);
+  const filters = [...(tempo ? [`atempo=${fit.atempoFactor.toFixed(4)}`] : []), ...(fillsOld ? slotLengthFilters(slotSamples) : [])].join(",");
+  await ffmpeg(["-y", "-i", prefitPath, ...(filters ? ["-filter:a", filters] : []), "-ar", String(FIT_SAMPLE_RATE), "-ac", "1", "-c:a", "pcm_s16le", wavPath]);
   fs.rmSync(prefitPath, { force: true });
-  return true;
+  return { ok: true, fit };
+}
+
+const FIT_SAMPLE_RATE = 48000;
+
+/** ffmpeg filters that pad or trim a clip to exactly `samples` samples, so the next line does not move. */
+export function slotLengthFilters(samples) {
+  return [`apad=whole_len=${samples}`, `atrim=end_sample=${samples}`];
+}
+
+/** An install that is not fitted (--retime, dub folder) says how long the take is against the slot it has on the picture. */
+function reportRetimeRatio(id, takeSec, pictureSlots, dir) {
+  const slot = pictureSlots.get(id);
+  if (!slot || !(slot > 0)) return;
+  const reason = dubCode(dir) ? "dub folder: dub.mjs fits it to the picture" : "--retime";
+  process.stdout.write(retimeRatioMessage(id, takeSec, slot, reason) + "\n");
+}
+
+/** timings start moves under this (s) are rounding, not a shifted line. */
+const MOVED_TOLERANCE_SEC = 0.001;
+
+/** Seconds of silence a plan line asks for before it (`pauseBeforeMs`, ms). */
+function pauseBeforeSec(line) {
+  return line && line.pauseBeforeMs > 0 ? line.pauseBeforeMs / 1000 : 0;
+}
+
+/**
+ * Plan lines with the next line's `pauseBeforeMs` added to each line's pause after it, so the silence
+ * gate lists that stretch as planned, not as dead air.
+ */
+export function foldPauseBefore(planLines, gapMs) {
+  return planLines.map((l, i) => {
+    const next = planLines[i + 1];
+    return next && next.pauseBeforeMs > 0 ? { ...l, pauseAfterMs: (l.pauseAfterMs ?? gapMs) + next.pauseBeforeMs } : l;
+  });
+}
+
+/**
+ * previousSlots with the pause recorded before the next line (timings `pauseBeforeSec`) taken out: the
+ * pause belongs to the next line, so a re-take is not charged for it and does not borrow it.
+ */
+export function slotsWithoutPauseBefore(prevLines, planLines, gapMs) {
+  const slots = previousSlots(prevLines, planLines, gapMs);
+  prevLines.forEach((l, i) => {
+    const before = (prevLines[i + 1] && prevLines[i + 1].pauseBeforeSec) || 0;
+    if (before > 0) slots.get(l.id).slotSec -= before;
+  });
+  return slots;
+}
+
+/**
+ * Puts the current clip of every line being re-made aside as voice/line-<id>.wav.old-<unique>.wav,
+ * before any provider writes (a batch provider writes in place). Only lines with a slot to keep.
+ * @returns {Map<string, {slot: object, backup: string}>}
+ */
+function backUpOldClips({ lines, paths, onlySet, keepTiming, previousById, oldSlots }) {
+  const clips = new Map();
+  if (!keepTiming || !onlySet) return clips;
+  for (const line of lines) {
+    const clipPath = installedClipPath(paths, line.id);
+    const slot = oldSlots.get(line.id);
+    if (!onlySet.has(line.id) || !previousById.has(line.id) || !slot || !fs.existsSync(clipPath)) continue;
+    const backup = `${clipPath}.old-${uniqueSuffix()}.wav`;
+    fs.copyFileSync(clipPath, backup);
+    clips.set(line.id, { slot, backup });
+  }
+  return clips;
+}
+
+/** Puts the clips of backUpOldClips back (a run that stopped before it could judge the new takes). */
+function restoreOldClips(paths, clips) {
+  for (const [id, { backup }] of clips) fs.renameSync(backup, installedClipPath(paths, id));
+}
+
+/** A refused re-take: the take is kept at voice/takes/<id>/refused-<stamp>.wav and the old clip is put back. */
+function refuseRetake(paths, id, wavPath, oldClipBackup) {
+  const keepDir = path.join(paths.voiceDir, "takes", id);
+  ensureDir(keepDir);
+  const kept = path.join(keepDir, `refused-${uniqueSuffix()}.wav`);
+  fs.renameSync(wavPath, kept);
+  fs.renameSync(oldClipBackup, wavPath);
+  process.stdout.write(`${id}: kept the refused take at ${kept}; the old clip is back\n`);
+}
+
+/** Ends a run that refused re-takes: the others are installed, this one step failed. */
+function failIfRefused(result) {
+  if (result.refused && result.refused.length) fail(`${result.refused.length} line(s) not installed, their take runs over the slot: ${result.refused.join(", ")}`);
+}
+
+/** The error rate of each new take next to the take it replaces (a judgement for the reader, not a stop). */
+function reportAgainstExisting(freshLines, previousById) {
+  for (const l of freshLines) {
+    const before = previousById.get(l.id);
+    if (!before || !before.stt || typeof before.stt.cer !== "number" || !l.stt) continue;
+    const delta = l.stt.cer - before.stt.cer;
+    const verdict = Math.abs(delta) < 0.005 ? "about the same" : delta < 0 ? "better" : "worse";
+    process.stdout.write(`${l.id}: STT error rate ${before.stt.cer.toFixed(2)} (existing take) -> ${l.stt.cer.toFixed(2)} (new take): ${verdict}\n`);
+  }
+}
+
+/**
+ * What freshly made lines' own waveform and level say (HEAD, TAIL, EDGE, DIP, PAUSE), stored as
+ * `clipFacts` and printed. HEAD and TAIL set the line's voiceFlag (when it has none) and print a
+ * WARN: the speech-to-text check cannot see a click or a cut. Never stops the run.
+ */
+async function inspectMadeLines(paths, freshLines) {
+  for (const lineOut of freshLines) {
+    const clip = readLineClip(paths, lineOut.id);
+    if (!clip) continue;
+    const found = findClipDefects(clip.samples, clip.sampleRate);
+    if (found) lineOut.clipFacts = found; // timings.json keeps them for review.mjs
+    reportClipDefects(lineOut, found);
+  }
+}
+
+function reportClipDefects(lineOut, found) {
+  const defects = describeDefects(found);
+  if (!defects.length) return;
+  const flag = waveformFlag(found);
+  if (!flag) {
+    process.stdout.write(`line "${lineOut.id}": ${defects.join("; ")} — facts the STT check cannot hear; listen before keeping\n`);
+    return;
+  }
+  if (!lineOut.voiceFlag) lineOut.voiceFlag = flag;
+  process.stdout.write(`WARN line "${lineOut.id}": ${flag} — ${defects.join("; ")} — waveform evidence, no transcript clears it; re-make it: voice.mjs <reel> --lines ${lineOut.id} (or --retry-flagged N)\n`);
+}
+
+/** N16: caption words after a pause start where their sound begins, on freshly made lines. */
+function snapMadeLines(paths, freshLines) {
+  for (const lineOut of freshLines) {
+    const clip = readLineClip(paths, lineOut.id);
+    if (clip) snapLineWords(lineOut, clip);
+  }
+}
+
+/**
+ * `--raw-status [--lines id,id]`: whether voice/raw/<id>.wav is the take each installed clip was
+ * made from (timings.json `rawTake`). Report only; exit code 1 when a raw take is stale or missing,
+ * so a script that rebuilds clips from voice/raw can stop before it builds the wrong audio.
+ */
+function runRawStatus(paths, flags = {}) {
+  if (!fs.existsSync(paths.timingsJson)) throw new Error(`--raw-status: no ${paths.timingsJson} — run a full voice.mjs pass first`);
+  const lines = sttOnlyLines(readJson(paths.timingsJson).lines || [], flags.lines);
+  const problems = rawTakeProblems(paths.voiceDir, lines);
+  process.stdout.write(`raw takes: ${lines.length - problems.length} of ${lines.length} line(s) current\n`);
+  const warning = rawTakeWarning(problems);
+  if (warning) process.stdout.write(`${warning}\n`);
+  if (problems.some((p) => p.status !== "unrecorded")) process.exitCode = 1;
+}
+
+/** A line's text ends with a question mark (any script), closing quotes or brackets aside. */
+const ENDS_WITH_QUESTION = /[?？¿؟]["”’')\]」』»\s]*$/u;
+
+/**
+ * `--pitch [--lines id,id] [--words]`: where the pitch goes in each installed line — report only.
+ * Per line: voiced share, median pitch, range, and the end contour (rise / fall / level, in semitones,
+ * against the voiced stretch before it); with --words each word's shape (rising, falling, level, dipping,
+ * peaking, unvoiced). A line whose text ends in a question mark is marked with its measured end contour.
+ * Writes out/pitch.json (every line and word). It measures; whether a contour is right for the
+ * language is the reader's judgement (PITCH_LIMITS).
+ */
+function runPitchReport(dir, paths, flags) {
+  if (!fs.existsSync(paths.timingsJson)) throw new Error(`--pitch: no ${paths.timingsJson} — run a full voice.mjs pass first`);
+  const timings = readJson(paths.timingsJson);
+  const wanted = typeof flags.lines === "string" ? new Set(flags.lines.split(",").map((s) => s.trim()).filter(Boolean)) : null;
+  const lines = (timings.lines || []).filter((l) => !wanted || wanted.has(l.id));
+  const unknown = wanted ? [...wanted].filter((id) => !lines.some((l) => l.id === id)) : [];
+  if (unknown.length) throw new Error(`--pitch: unknown line id(s): ${unknown.join(", ")}`);
+  const rows = [];
+  for (const l of lines) {
+    const clip = readLineClip(paths, l.id);
+    if (!clip) {
+      process.stdout.write(`${l.id}: no readable voice/line-${l.id}.wav — skipped\n`);
+      continue;
+    }
+    const track = pitchTrack(clip.samples, clip.sampleRate);
+    const words = (l.words || []).filter((w) => typeof w.start === "number" && typeof w.end === "number").map((w) => ({ w: w.w, start: w.start - l.start, end: w.end - l.start }));
+    rows.push({ id: l.id, text: l.text, question: ENDS_WITH_QUESTION.test(l.text || ""), ...pitchSummary(track), end: endContour(track), words: wordContours(track, words) });
+  }
+  printPitchReport(rows, !!flags.words);
+  const outDir = path.join(dir, "out");
+  ensureDir(outDir);
+  writeJson(path.join(outDir, "pitch.json"), { limits: PITCH_LIMITS, lines: rows });
+  process.stdout.write(`wrote ${path.join(outDir, "pitch.json")}\n${PITCH_LIMITS}\n`);
+}
+
+function printPitchReport(rows, showWords) {
+  process.stdout.write("pitch (measured; not a verdict):\nid\tvoiced\tmedian\trange\tend\tquestion\n");
+  for (const r of rows) {
+    const end = r.end ? `${r.end.direction} ${r.end.deltaSemitones > 0 ? "+" : ""}${r.end.deltaSemitones} st` : "-";
+    const median = r.medianHz == null ? "-" : `${r.medianHz} Hz`;
+    const range = r.rangeSemitones == null ? "-" : `${r.rangeSemitones} st`;
+    process.stdout.write(`${r.id}\t${Math.round(r.voicedShare * 100)}%\t${median}\t${range}\t${end}\t${r.question ? "?" : "-"}\n`);
+    if (showWords) process.stdout.write(`  ${r.words.map((w) => `${w.w}:${w.shape}`).join(" ")}\n`);
+  }
+  for (const r of rows.filter((x) => x.question)) {
+    process.stdout.write(`${r.id}: the text ends with a question mark; measured end contour: ${r.end ? `${r.end.direction} (${r.end.deltaSemitones} st)` : "not measurable"} — for a language that marks questions with a rise, listen to it\n`);
+  }
+}
+
+/** voice/line-<id>.wav as {samples, sampleRate}, or null when it cannot be read. */
+function readLineClip(paths, id) {
+  try {
+    return readWav(path.join(paths.voiceDir, `line-${id}.wav`));
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * N16: moves each measured word that follows a pause to where its sound begins (snapStartsToSound).
+ * Words that were only spread evenly (wordsMeasured 0) stay.
+ */
+function snapLineWords(lineOut, clip) {
+  if (!(lineOut.wordsMeasured > 0) || !lineOut.words || !lineOut.words.length) return;
+  const snapped = snapStartsToSound(lineOut.words, clip.samples, clip.sampleRate, lineOut.start);
+  if (!snapped.moved.length) return;
+  lineOut.words = snapped.words;
+  const first = snapped.moved[0];
+  process.stdout.write(`line "${lineOut.id}": ${snapped.moved.length} word start(s) after a pause moved to where the sound begins (first: "${first.w}" ${first.from.toFixed(3)} -> ${first.to.toFixed(3)} s)\n`);
 }
 
 /** plan.json's meta, or {} when the plan is missing or unreadable. */
@@ -1369,36 +1920,45 @@ export async function synthesizeTakes({ dir, paths, plan, lineIds, spec, provide
       const spoken = forEngine(withMark, lv.provider, lv.voiceCfg);
       const outPath = path.join(takesDir, `${id}-${k}.wav`);
 
+      const items = [{ id, text: spoken, outPath }];
       const synthResult = typeof lv.provider.synthBatch === "function"
-        ? (await lv.provider.synthBatch([{ id, text: spoken, outPath }], { lang: takeLang, voiceCfg: lv.voiceCfg, reelDir: dir })).find((r) => r.id === id)
-        : await synthOne(lv, { id, text: spoken, lang: takeLang, outPath, reelDir: dir, lineStart: 0 });
+        ? (await withUsageLog(paths.voiceDir, lv, items, () => lv.provider.synthBatch(items, { lang: takeLang, voiceCfg: lv.voiceCfg, reelDir: dir }))).find((r) => r.id === id)
+        : await withUsageLog(paths.voiceDir, lv, items, () => synthOne(lv, { id, text: spoken, lang: takeLang, outPath, reelDir: dir, lineStart: 0 }));
       if (!synthResult) throw new Error(`voice provider "${lv.providerName}" returned no result for take ${id}-${k}`);
       const durationSec = await probeDuration(synthResult.wavPath);
 
       let cerVal = null;
+      let cerSkipped = null;
       if (sttEnabled) {
         const sttId = `${id}-${k}`;
-        const sttRes = await sttTranscribe(paths.voiceDir, [{ id: sttId, wav: `takes/${id}-${k}.wav` }], takeCode);
-        if (!sttRes.skipped) {
+        // On the same leveling an installed clip gets: a take's raw loudness would reorder the ranking.
+        const entry = sttEntry(line, `takes/${id}-${k}.wav`, { id: sttId, langCode: takeCode, pronounce });
+        const sttRes = await sttTranscribeLeveled(paths.voiceDir, [entry], takeCode, { level: lv.voiceCfg.levelLines !== false });
+        if (sttRes.skipped) {
+          cerSkipped = sttRes.skipped;
+        } else {
           const heard = sttRes.results.get(sttId) || "";
-          cerVal = compareLine({ text: strippedText, say: strippedSay, heard }).cer;
+          cerVal = compareLine({ text: strippedText, say: strippedSay, heard, lang: takeCode, names: entry.names }).cer;
         }
       }
-      rows.push({ id, k, mark, durationSec, lengthSec: installedLength(durationSec, line, lv.voiceCfg, lv.provider), cer: cerVal });
+      rows.push({ id, k, mark, durationSec, lengthSec: installedLength(durationSec, line, lv.voiceCfg, lv.provider), cer: cerVal, cerSkipped });
     }
 
     manifest[id] = spec.mode === "tone" ? { mode: "tone", marks: spec.marks } : { mode: "count", n: spec.n };
   }
 
   saveTakesManifest(paths, manifest);
+  await addTakeFacts(rows, { paths, plan, lineVoices, filmVoice, keepSlots: keepTiming, withInstalled: !!pickBy, gapMs });
   const picked = pickBy ? pickTakes(rows, lineIds, pickBy) : new Map(lineIds.map((id) => [id, 1]));
   printTakesTable(rows, pickBy ? picked : null);
 
   // Without --pick-by, takes only compare; a line with no installed clip yet
   // still gets take 1 so the reel is complete.
-  const installIds = pickBy ? lineIds : lineIds.filter((id) => !fs.existsSync(installedClipPath(paths, id)));
+  const wanted = pickBy ? lineIds : lineIds.filter((id) => !fs.existsSync(installedClipPath(paths, id)));
+  const installIds = wanted.filter((id) => picked.get(id) > 0);
+  reportPickOutcome(lineIds, picked);
   if (!installIds.length) {
-    process.stdout.write("installed clips unchanged — install one with --pick <id>=<k>\n");
+    if (!pickBy) process.stdout.write("installed clips unchanged — install one with --pick <id>=<k>\n");
     return { rows, picked, timings: null };
   }
   keepInstalledClips(paths, installIds);
@@ -1422,10 +1982,12 @@ export async function synthesizeTakes({ dir, paths, plan, lineIds, spec, provide
     takeWavs,
   });
   writeJson(paths.timingsJson, result.timings);
-  process.stdout.write(`installed take(s): ${installIds.map((id) => `${id}=${picked.get(id)}`).join(", ")}\n`);
+  const installed = installIds.filter((id) => !result.refused.includes(id));
+  process.stdout.write(`installed take(s): ${installed.map((id) => `${id}=${picked.get(id)}`).join(", ")}\n`);
   const kept = lineIds.filter((id) => !installIds.includes(id));
   if (kept.length) process.stdout.write(`installed clips unchanged: ${kept.join(", ")} — install one with --pick <id>=<k>\n`);
   process.stdout.write(partialRebuildNote(dir, result.moved));
+  failIfRefused({ refused: result.refused });
   return { rows, picked, timings: result.timings };
 }
 
@@ -1458,24 +2020,123 @@ function installedLength(durationSec, line, voiceCfg, provider) {
   return tempo && tempo.factor ? durationSec / tempo.factor : durationSec;
 }
 
-/** `--pick-by`: the chosen take number per line id. */
+/**
+ * `--pick-by`: the chosen take number per line id; 0 = keep the installed clip (it scored as well or
+ * better, no take fits its slot, or no take could be checked: the facts are printed). A take that could
+ * not be measured is never chosen.
+ */
 function pickTakes(rows, lineIds, pickBy) {
-  return new Map(lineIds.map((id) => [id, chooseTake(rows.filter((r) => r.id === id), pickBy)]));
+  return new Map(lineIds.map((id) => {
+    const mine = rows.filter((r) => r.id === id);
+    for (const r of mine.filter((x) => x.unchecked)) {
+      process.stdout.write(`${id}: take ${r.installed ? "installed" : r.k} unchecked (${r.unchecked}) — not chosen\n`);
+    }
+    const usable = mine.filter((r) => !r.unchecked);
+    if (!usable.length) return [id, 0];
+    try {
+      return [id, chooseTake(usable, pickBy)];
+    } catch (e) {
+      if (e.code !== "NO_FIT") throw e;
+      process.stdout.write(`${e.message}; the installed clip stays\n`);
+      return [id, 0];
+    }
+  }));
+}
+
+/** Says, per line, when --pick-by keeps the installed clip instead of installing a take. */
+function reportPickOutcome(lineIds, picked) {
+  const kept = lineIds.filter((id) => picked.get(id) === 0);
+  if (kept.length) process.stdout.write(`installed clip kept (no take beats it or fits): ${kept.join(", ")}\n`);
+}
+
+/** The length of a take once trimmed to its voiced span and pads, the clip an install would make. */
+async function trimmedTakeSec(wavPath) {
+  const range = voicedSpanWithPads(await measureEdgeEnvelope(wavPath), await probeDuration(wavPath));
+  return range.trimmedEndSec - range.trimmedStartSec;
+}
+
+/** The row of the take a line has installed now (k = 0): its length and error rate from timings.json. */
+function installedRow(paths, id, prev) {
+  const wavPath = installedClipPath(paths, id);
+  if (!prev || !fs.existsSync(wavPath)) return null;
+  const lengthSec = prev.end - prev.start;
+  const cer = prev.stt && typeof prev.stt.cer === "number" ? prev.stt.cer : null;
+  return { id, k: 0, installed: true, mark: null, durationSec: lengthSec, lengthSec, cer, wavPath };
+}
+
+/**
+ * Facts on each take row, from its own audio: the length it would have once trimmed, how it fits the
+ * line's slot (a take that runs over is never chosen), the pitch at its end and the defects the STT check
+ * cannot hear. With `withInstalled` the line's installed take joins as row k = 0, so a pick compares
+ * with it. Rows stay plain data for printTakesTable and chooseTake.
+ */
+async function addTakeFacts(rows, { paths, plan, lineVoices, filmVoice, keepSlots, withInstalled, gapMs }) {
+  const prevLines = fs.existsSync(paths.timingsJson) ? readJson(paths.timingsJson).lines || [] : [];
+  const prevById = new Map(prevLines.map((l) => [l.id, l]));
+  const slots = slotsWithoutPauseBefore(prevLines, plan.lines, gapMs);
+  const linesById = new Map(plan.lines.map((l) => [l.id, l]));
+  if (withInstalled) {
+    for (const id of new Set(rows.map((r) => r.id))) {
+      const row = installedRow(paths, id, prevById.get(id));
+      if (row) rows.push(row);
+    }
+  }
+  for (const r of rows) {
+    const wavPath = r.wavPath || path.join(paths.voiceDir, "takes", `${r.id}-${r.k}.wav`);
+    let clip;
+    try {
+      clip = readWav(wavPath);
+    } catch (e) {
+      // Not read, so not measured: it cannot pass as one that fits (pickTakes leaves it out).
+      r.unchecked = `unreadable: ${e.message}`;
+      continue;
+    }
+    const line = linesById.get(r.id);
+    const lv = voiceOf(lineVoices, line, filmVoice);
+    if (!r.installed) {
+      // Both sides of a length comparison are the clip an install would make: trimmed, tempo applied.
+      try {
+        r.lengthSec = installedLength(await trimmedTakeSec(wavPath), line, lv.voiceCfg, lv.provider);
+      } catch (e) {
+        r.unchecked = `length not measured: ${e.message}`;
+        continue;
+      }
+    }
+    if (!r.installed && keepSlots && slots.has(r.id) && prevById.has(r.id)) {
+      r.fitSec = r.lengthSec;
+      r.fit = planRetakeFit(r.fitSec, slots.get(r.id));
+      r.fits = r.fit.ok;
+      if (!r.fit.ok) r.needs = r.fit.requiredFactor;
+    }
+    const end = endContour(pitchTrack(clip.samples, clip.sampleRate));
+    r.end = end ? `${end.direction} ${end.deltaSemitones > 0 ? "+" : ""}${end.deltaSemitones} st` : null;
+    r.defects = defectCodes(findClipDefects(clip.samples, clip.sampleRate));
+  }
 }
 
 /**
  * Prints a compact `id | take | tone | cer | duration | length` comparison
  * table; `picked` (id -> k) marks the takes --pick-by chose.
  */
-function printTakesTable(rows, picked = null) {
+export function printTakesTable(rows, picked = null) {
   if (!rows.length) return;
+  // Columns of facts measured on the audio appear only when some take has one.
+  const extra = [
+    ["end", rows.some((r) => r.end), (r) => r.end || "-"],
+    ["slot", rows.some((r) => r.fit), (r) => (r.installed ? "-" : fitColumn(r.fit))],
+    ["defects", rows.some((r) => r.defects && r.defects.length), (r) => (r.defects && r.defects.length ? r.defects.join(",") : "-")],
+  ].filter(([, shown]) => shown);
   process.stdout.write("takes:\n");
-  process.stdout.write(`id\ttake\ttone\tcer\tduration\tlength${picked ? "\tpicked" : ""}\n`);
+  process.stdout.write(`id\ttake\ttone\tcer\tduration\tlength${extra.map(([name]) => `\t${name}`).join("")}${picked ? "\tpicked" : ""}\n`);
   for (const r of rows) {
     const cerStr = r.cer == null ? "-" : r.cer.toFixed(2);
     const lengthStr = r.lengthSec == null ? "-" : `${r.lengthSec.toFixed(3)}s`;
     const mark = picked ? (picked.get(r.id) === r.k ? "\t<-" : "\t") : "";
-    process.stdout.write(`${r.id}\t${r.k}\t${r.mark || "-"}\t${cerStr}\t${r.durationSec.toFixed(3)}s\t${lengthStr}${mark}\n`);
+    const facts = extra.map(([, , cell]) => `\t${cell(r)}`).join("");
+    process.stdout.write(`${r.id}\t${r.installed ? "installed" : r.k}\t${r.mark || "-"}\t${cerStr}\t${r.durationSec.toFixed(3)}s\t${lengthStr}${facts}${mark}\n`);
+  }
+  for (const why of new Set(rows.map((r) => r.cerSkipped).filter(Boolean))) {
+    process.stdout.write(`cer "-": STT check skipped — ${why}\n`);
   }
 }
 
@@ -1551,8 +2212,9 @@ async function runUse({ dir, paths, plan, flags, providerMod, providerName, voic
     finishedIds: new Set(uses.map((u) => u.id)),
   });
   writeJson(paths.timingsJson, result.timings);
-  process.stdout.write(`installed finished audio: ${uses.map((u) => `${u.id} <- ${u.file}`).join(", ")}\n`);
+  process.stdout.write(`installed finished audio: ${uses.filter((u) => !result.refused.includes(u.id)).map((u) => `${u.id} <- ${u.file}`).join(", ")}\n`);
   process.stdout.write(partialRebuildNote(dir, result.moved));
+  failIfRefused(result);
 }
 
 /**
@@ -1587,18 +2249,26 @@ async function runPickBy({ dir, paths, plan, flags, pickBy, lineIds, providerMod
     if (!line) throw new Error(`--pick-by: unknown line id "${id}"`);
     const found = listTakeFiles(paths, id);
     if (!found.length) throw new Error(`--pick-by: no takes for "${id}" in ${path.join(paths.voiceDir, "takes")} — run --takes first`);
-    const cers = pickBy.by === "stt" ? await takesCer(paths, line, found, langCode) : new Map();
-    const marks = manifest[id] && manifest[id].mode === "tone" ? manifest[id].marks : [];
     const lv = voiceOf(lineVoices, line, { provider: providerMod, voiceCfg });
+    const cers = pickBy.by === "stt" ? await takesCer(paths, line, found, langCode, { level: lv.voiceCfg.levelLines !== false, pronounce: plan.meta.pronounce }) : new Map();
+    const marks = manifest[id] && manifest[id].mode === "tone" ? manifest[id].marks : [];
     for (const k of found) {
-      const durationSec = await probeDuration(path.join(paths.voiceDir, "takes", `${id}-${k}.wav`));
-      rows.push({ id, k, mark: marks[k - 1] || null, durationSec, lengthSec: installedLength(durationSec, line, lv.voiceCfg, lv.provider), cer: cers.get(k) ?? null });
+      const row = { id, k, mark: marks[k - 1] || null, cer: cers.get(k) ?? null };
+      try {
+        const durationSec = await probeDuration(path.join(paths.voiceDir, "takes", `${id}-${k}.wav`));
+        rows.push({ ...row, durationSec, lengthSec: installedLength(durationSec, line, lv.voiceCfg, lv.provider) });
+      } catch (e) {
+        rows.push({ ...row, durationSec: 0, lengthSec: null, unchecked: `unreadable: ${String(e.message).split("\n")[0]}` });
+      }
     }
   }
+  const keepSlots = !flags.retime && !dubCode(dir);
+  await addTakeFacts(rows, { paths, plan, lineVoices, filmVoice: { provider: providerMod, voiceCfg }, keepSlots, withInstalled: true, gapMs });
   const picked = pickTakes(rows, ids, pickBy);
   printTakesTable(rows, picked);
-  const picks = ids.map((id) => ({ id, k: picked.get(id) }));
-  await installPicks({ dir, paths, plan, flags, picks, providerMod, providerName, voiceCfg, lineVoices, gapMs, tailSec, sttEnabled });
+  reportPickOutcome(ids, picked);
+  const picks = ids.filter((id) => picked.get(id) > 0).map((id) => ({ id, k: picked.get(id) }));
+  if (picks.length) await installPicks({ dir, paths, plan, flags, picks, providerMod, providerName, voiceCfg, lineVoices, gapMs, tailSec, sttEnabled });
 }
 
 /** Take numbers k with a voice/takes/<id>-<k>.wav on disk, ascending. */
@@ -1610,14 +2280,17 @@ function listTakeFiles(paths, id) {
   return found;
 }
 
-/** CER of each take k of `line`, by transcribing the takes on disk. */
-async function takesCer(paths, line, ks, langCode) {
-  const entries = ks.map((k) => ({ id: `${line.id}-${k}`, wav: `takes/${line.id}-${k}.wav` }));
-  const stt = await sttTranscribe(paths.voiceDir, entries, line.lang ? sttLangCode(line.lang) : langCode);
+/**
+ * CER of each take k of `line`, by transcribing the takes on disk on the leveling an
+ * installed clip gets (`level` false when the voice sets levelLines: false).
+ */
+async function takesCer(paths, line, ks, langCode, { level = true, pronounce = null } = {}) {
+  const code = line.lang ? sttLangCode(line.lang) : langCode;
+  const entries = ks.map((k) => sttEntry(line, `takes/${line.id}-${k}.wav`, { id: `${line.id}-${k}`, langCode: code, pronounce }));
+  const stt = await sttTranscribeLeveled(paths.voiceDir, entries, code, { level });
   if (stt.skipped) throw new Error(`--pick-by stt: ${stt.skipped}`);
-  const text = stripCaptionBreaks(line.text);
-  const say = line.say != null ? stripCaptionBreaks(line.say) : line.say;
-  return new Map(ks.map((k) => [k, compareLine({ text, say, heard: stt.results.get(`${line.id}-${k}`) || "" }).cer]));
+  const { text, say, names } = entries[0];
+  return new Map(ks.map((k) => [k, compareLine({ text, say, heard: stt.results.get(`${line.id}-${k}`) || "", lang: code, names }).cer]));
 }
 
 /**
@@ -1630,24 +2303,14 @@ async function installPicks({ dir, paths, plan, flags, picks, providerMod, provi
     throw new Error(`--pick: no candidate take(s) for ${missing.map((p) => `${p.id}=${p.k}`).join(", ")} — run --takes first`);
   }
 
-  const manifest = loadTakesManifest(paths);
-  const voices = lineVoices || new Map(plan.lines.map((l) => [l.id, resolveLineVoice(plan.meta, l, providerName)]));
-  const tonesWritten = [];
-  for (const p of picks) {
-    const entry = manifest[p.id];
-    if (entry && entry.mode === "tone" && entry.marks && entry.marks[p.k - 1]) {
-      const mark = entry.marks[p.k - 1];
-      tonesWritten.push({ mark, where: writePickedTone(plan, p.id, mark, voices, providerName) });
-    }
-  }
-  if (tonesWritten.length) writeJson(paths.planJson, plan);
-
   const takeWavs = new Map(picks.map((p) => [p.id, path.join(paths.voiceDir, "takes", `${p.id}-${p.k}.wav`)]));
   keepInstalledClips(paths, picks.map((p) => p.id));
+  const { lines, waiting } = splitPlanByAudio(plan.lines, picks.map((p) => p.id), (id) => fs.existsSync(installedClipPath(paths, id)));
+  if (waiting.length) process.stdout.write(`no audio yet for ${waiting.join(", ")} — left out of this rebuild; make ${waiting.length === 1 ? "it" : "them"} next with --lines ${waiting.join(",")} (or a full pass)\n`);
   const result = await synthesizeAll({
     dir,
     paths,
-    lines: plan.lines,
+    lines,
     provider: providerMod,
     providerName,
     voiceCfg,
@@ -1663,11 +2326,33 @@ async function installPicks({ dir, paths, plan, flags, picks, providerMod, provi
     takeWavs,
   });
   writeJson(paths.timingsJson, result.timings);
-  process.stdout.write(`installed take(s): ${picks.map((p) => `${p.id}=${p.k}`).join(", ")}\n`);
-  for (const t of tonesWritten) {
+  const installed = picks.filter((p) => !result.refused.includes(p.id));
+  process.stdout.write(`installed take(s): ${installed.map((p) => `${p.id}=${p.k}`).join(", ")}\n`);
+  writePickedTones({ paths, plan, picks: installed, providerName, lineVoices });
+  process.stdout.write(partialRebuildNote(dir, result.moved));
+  failIfRefused({ refused: result.refused });
+}
+
+/**
+ * A take picked from a --takes tone comparison sets that tone in plan.json, but only once it is
+ * installed: a refused pick leaves the tone unwritten.
+ */
+function writePickedTones({ paths, plan, picks, providerName, lineVoices }) {
+  const manifest = loadTakesManifest(paths);
+  const voices = lineVoices || new Map(plan.lines.map((l) => [l.id, resolveLineVoice(plan.meta, l, providerName)]));
+  const written = [];
+  for (const p of picks) {
+    const entry = manifest[p.id];
+    if (entry && entry.mode === "tone" && entry.marks && entry.marks[p.k - 1]) {
+      const mark = entry.marks[p.k - 1];
+      written.push({ mark, where: writePickedTone(plan, p.id, mark, voices, providerName) });
+    }
+  }
+  if (!written.length) return;
+  writeJson(paths.planJson, plan);
+  for (const t of written) {
     process.stdout.write(`wrote ${t.where} = "${t.mark}" to plan.json — that speaker's remaining lines will be made in this tone\n`);
   }
-  process.stdout.write(partialRebuildNote(dir, result.moved));
 }
 
 /**

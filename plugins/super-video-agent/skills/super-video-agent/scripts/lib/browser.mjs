@@ -17,6 +17,142 @@ export function readyTimeoutMs(env = process.env) {
   return Number.isFinite(v) && v > 0 ? v : DEFAULT_READY_TIMEOUT_MS;
 }
 
+// A failed WebGL draw reaches the console as a warning, not an error, so an
+// errors-only listener passes a frame that drew nothing.
+const GL_MESSAGE = /webgl|\bGL[ _:]|\bgl[A-Z]\w*\s*[(:]|glsl|shader|drawElements|drawArrays|framebuffer|INVALID_(?:OPERATION|VALUE|ENUM)/i;
+const GL_NOISE = /GPU stall due to ReadPixels/i;
+// What a GL message must say for the frame to be definitely wrong.
+const GL_DEFINITE = /INVALID_(?:OPERATION|VALUE|ENUM|FRAMEBUFFER_OPERATION)|CONTEXT[_ ]LOST|OUT_OF_MEMORY/i;
+
+/**
+ * Records a console message in `gl` when it is a WebGL one: warnings and
+ * errors that name a GL call or state. definite = a GL error code or a lost
+ * context (the frame is wrong); any other GL message is a warning to report.
+ * @param {Map<string, {text: string, definite: boolean, count: number}>} gl
+ * @param {string} type console message type
+ * @param {string} text
+ */
+export function noteGlMessage(gl, type, text) {
+  if (type !== "warning" && type !== "error") return;
+  if (!GL_MESSAGE.test(text) || GL_NOISE.test(text)) return;
+  const key = text.replace(/0x[0-9a-f]+/gi, "0x…").replace(/\d{3,}/g, "N");
+  const seen = gl.get(key);
+  if (seen) seen.count++;
+  else gl.set(key, { text, definite: GL_DEFINITE.test(text), count: 1 });
+}
+
+/**
+ * The session's WebGL console messages so far, split into definite (a GL
+ * error: the frame is wrong, stop the step) and warnings (report).
+ * @param {{gl: Map<string, {text: string, definite: boolean, count: number}>}} session
+ */
+export function glIssues(session) {
+  const all = [...session.gl.values()];
+  return { definite: all.filter((g) => g.definite), warnings: all.filter((g) => !g.definite) };
+}
+
+/**
+ * Report lines for glIssues(): "GL error: ..." for each definite one,
+ * "GL warning: ..." for the rest; empty when the page logged none.
+ * @param {ReturnType<typeof glIssues>} issues
+ */
+export function glReportLines(issues) {
+  const line = (kind, g) => `${kind}: ${g.text.slice(0, 300)}${g.count > 1 ? ` (x${g.count})` : ""}`;
+  return [...issues.definite.map((g) => line("GL error", g)), ...issues.warnings.map((g) => line("GL warning", g))];
+}
+
+const GPU_MODES = ["default", "gpu", "swiftshader"];
+
+/**
+ * Chromium launch options from the environment (the skill's render config).
+ *   SVA_GPU          default (Playwright's own flags) | gpu (ask for the real GPU:
+ *                    ignore the GPU blocklist, GPU raster; ANGLE on Metal / EGL) |
+ *                    swiftshader (force the software renderer).
+ *   SVA_CHROME_ARGS  extra Chromium flags, added last: space separated, or a JSON
+ *                    array of strings when the value starts with "[" (an argument may hold spaces).
+ * @param {Record<string, string|undefined>} env
+ * @param {string} [platform]
+ */
+export function chromeLaunchOptions(env = process.env, platform = process.platform) {
+  const mode = (env.SVA_GPU || "default").toLowerCase();
+  if (!GPU_MODES.includes(mode)) throw new Error(`SVA_GPU takes ${GPU_MODES.join(" | ")} (got "${env.SVA_GPU}")`);
+  const args = [];
+  const opts = { headless: true, args };
+  if (mode === "gpu") {
+    args.push("--ignore-gpu-blocklist", "--enable-gpu-rasterization", "--enable-zero-copy");
+    if (platform === "darwin") args.push("--use-angle=metal");
+    else if (platform === "linux") args.push("--use-gl=angle", "--use-angle=gl-egl");
+    opts.ignoreDefaultArgs = ["--disable-gpu"];
+  } else if (mode === "swiftshader") {
+    args.push("--use-angle=swiftshader", "--enable-unsafe-swiftshader");
+  }
+  args.push(...parseChromeArgs(env.SVA_CHROME_ARGS));
+  return opts;
+}
+
+/**
+ * SVA_CHROME_ARGS as a list: a value starting with "[" is a JSON array of
+ * strings (an argument may then hold spaces), anything else splits on whitespace.
+ * @param {string|undefined} value
+ * @returns {string[]}
+ */
+export function parseChromeArgs(value) {
+  if (!value || !value.trim()) return [];
+  const text = value.trim();
+  if (!text.startsWith("[")) return text.split(/\s+/).filter(Boolean);
+  let list;
+  try {
+    list = JSON.parse(text);
+  } catch (e) {
+    throw new Error(`SVA_CHROME_ARGS starts with "[" so it must be a JSON array of strings, e.g. ["--user-agent=My Agent"] (${e.message})`);
+  }
+  if (!Array.isArray(list) || !list.every((a) => typeof a === "string")) {
+    throw new Error('SVA_CHROME_ARGS as JSON must be an array of strings, e.g. ["--user-agent=My Agent"]');
+  }
+  return list.filter(Boolean);
+}
+
+/** Whether a WebGL renderer string names a software rasteriser. */
+export function isSoftwareRenderer(name) {
+  return /swiftshader|llvmpipe|softpipe|software|basic render/i.test(name || "");
+}
+
+/**
+ * Opens a blank page with the launch options render pages use and reads the
+ * WebGL renderer: {webgl, renderer, vendor, software, mode, args}. A fact for
+ * `setup.mjs --check`; nothing here fails.
+ * @param {Record<string, string|undefined>} [env]
+ */
+export async function gpuReport(env = process.env) {
+  const chromium = await getChromium();
+  const opts = chromeLaunchOptions(env);
+  const browser = await chromium.launch(opts);
+  try {
+    const page = await browser.newPage();
+    const info = await page.evaluate(() => {
+      const gl = document.createElement("canvas").getContext("webgl");
+      if (!gl) return { webgl: false, renderer: "", vendor: "" };
+      const ext = gl.getExtension("WEBGL_debug_renderer_info");
+      return {
+        webgl: true,
+        renderer: String(ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER)),
+        vendor: String(ext ? gl.getParameter(ext.UNMASKED_VENDOR_WEBGL) : gl.getParameter(gl.VENDOR)),
+      };
+    });
+    return { ...info, software: !info.webgl || isSoftwareRenderer(info.renderer), mode: env.SVA_GPU || "default", args: opts.args };
+  } finally {
+    await browser.close();
+  }
+}
+
+// Runs in the page: waits for the optional window.__reel.preload (a promise,
+// or a function returning one) — ImageBitmaps decoded after `ready`, so the
+// first seek of a cold page draws what every later seek draws.
+async function awaitPreload() {
+  const p = window.__reel.preload;
+  await (typeof p === "function" ? p() : p);
+}
+
 /**
  * Resolves or rejects with `promise`, or rejects after `ms` with an error
  * naming `step`. A late rejection of `promise` is swallowed, so a page
@@ -42,11 +178,38 @@ export function withTimeout(promise, ms, step) {
 
 /**
  * The voice/timings.json a `--stub <sec>` run serves instead of the file on
- * disk: one silent line spanning the whole length. Never written to disk.
+ * disk: one silent line spanning the whole length (id "stub"), or with
+ * `segments` > 1 that many equal silent lines "stub-1".."stub-N", so the
+ * page reports that many shots and render.mjs can render them one by one.
+ * Never written to disk by the page load.
  * @param {number} sec
+ * @param {number} [segments]
  */
-export function stubTimings(sec) {
-  return { duration: sec, lines: [{ id: "stub", text: "", start: 0, end: sec, words: [] }] };
+export function stubTimings(sec, segments = 1) {
+  if (segments <= 1) return { duration: sec, lines: [{ id: "stub", text: "", start: 0, end: sec, words: [] }] };
+  const lines = [];
+  for (let i = 0; i < segments; i++) {
+    const start = (sec * i) / segments;
+    const end = i === segments - 1 ? sec : (sec * (i + 1)) / segments;
+    lines.push({ id: `stub-${i + 1}`, text: "", start, end, words: [] });
+  }
+  return { duration: sec, lines };
+}
+
+/**
+ * Reads a `--segments N` flag value (with --stub). Returns 1 when absent.
+ * Throws unless it is a whole number >= 1 and --stub is set.
+ * @param {string|boolean|undefined} value
+ * @param {number|null} stubSec
+ */
+export function stubSegmentCount(value, stubSec) {
+  if (value === undefined) return 1;
+  const n = Number(value);
+  if (value === true || !Number.isInteger(n) || n < 1) {
+    throw new Error(`--segments takes a whole number of segments, e.g. --segments 4 (got "${value}")`);
+  }
+  if (!stubSec) throw new Error("--segments splits a --stub clock; add --stub <sec>");
+  return n;
 }
 
 /**
@@ -75,14 +238,18 @@ export function stubSeconds(value, timingsPath, exists) {
  * settled) may take readyTimeoutMs(); the error names the step and lists
  * the page's own errors.
  * @param {string} url
- * @param {{width?: number, height?: number, stubSec?: number|null, warm?: boolean, readyTimeoutMs?: number}} [opts]
- *   stubSec: serve stubTimings(stubSec) as voice/timings.json.
- *   warm: false skips the per-shot warm-up seeks (verify.mjs's cold probe).
-   picture: {lang, strings}, set as globalThis.__svaPicture before the page runs.
+ * @param {{width?: number, height?: number, stubSec?: number|null, stubSegments?: number, warm?: boolean, warmShots?: string[]|null, readyTimeoutMs?: number, picture?: {lang: string|null, strings: object}}} [opts]
+ *   stubSec: serve stubTimings(stubSec, stubSegments) as voice/timings.json.
+ *   warm: false skips the per-shot warm-up seeks (verify.mjs's cold probe);
+ *     warmShotsOf() can warm chosen shots later.
+ *   warmShots: warm only these shot ids (null = every shot). A lazily built
+ *     page (one 3D world per shot group) then builds only what they need.
+ *   picture: {lang, strings}, set as globalThis.__svaPicture before the page
+ *     runs; every key and lang read is recorded (pictureReads()).
  */
 export async function openReel(url, opts = {}) {
   const chromium = await getChromium();
-  const browser = await chromium.launch({ headless: true });
+  const browser = await chromium.launch(chromeLaunchOptions(process.env));
   const page = await browser.newPage({
     viewport: {
       width: opts.width || 1080,
@@ -90,8 +257,10 @@ export async function openReel(url, opts = {}) {
     },
   });
   const errors = [];
+  const gl = new Map(); // WebGL console messages: text -> {text, definite, count}
   page.on("pageerror", (e) => errors.push(String(e)));
   page.on("console", (msg) => {
+    noteGlMessage(gl, msg.type(), msg.text());
     if (msg.type() !== "error") return;
     // Chromium logs its own "Failed to load resource: ...404..." console
     // error for ANY failed fetch, including the page's intentionally
@@ -103,18 +272,21 @@ export async function openReel(url, opts = {}) {
     errors.push(msg.text());
   });
   if (opts.stubSec) {
-    const body = JSON.stringify(stubTimings(opts.stubSec));
+    const body = JSON.stringify(stubTimings(opts.stubSec, opts.stubSegments || 1));
     await page.route(/\/voice\/timings\.json(\?.*)?$/, (route) =>
       route.fulfill({ status: 200, contentType: "application/json", body })
     );
   }
   if (opts.picture) {
     // Before any page script: Reel.lang / Reel.pictureText() read this (reel-engine.js "picture strings").
-    await page.addInitScript((p) => {
-      globalThis.__svaPicture = p;
-    }, opts.picture);
+    await page.addInitScript(installPictureState, opts.picture);
   }
   await waitUntilReady({ page, browser, url, errors, ms: opts.readyTimeoutMs || readyTimeoutMs() });
+  // Every picture-string read this page makes, from load on, is kept for the
+  // whole session (sessionPictureReads): a page may read a string once and
+  // cache it, so a read during load, warm-up, a probe or an earlier segment
+  // can be what a later segment's frames draw.
+  const pictureReads = opts.picture ? await takePictureReads(page) : null;
   const meta = await page.evaluate(() => {
     const r = window.__reel;
     return {
@@ -124,6 +296,8 @@ export async function openReel(url, opts = {}) {
       duration: r.duration,
       shots: r.shots || [],
       layers: r.layers || [], // e.g. ["captions"] — dub.mjs's own-caption-layer support (references/pipeline.md "Picture first")
+      drift: typeof r.driftReport === "function" ? r.driftReport() : null, // reel-drift.js: graded notes for the model to judge
+      parallax: typeof r.parallaxReport === "function" ? r.parallaxReport() : null, // Reel.parallaxCoverage result (references/parallax.md)
     };
   });
   // Headless Chromium's text/font rendering caches are not fully warm the
@@ -137,22 +311,118 @@ export async function openReel(url, opts = {}) {
   // contract (seek(t) independent of call history) actually needs.
   // `warmUp` lists these seeks in order, so a determinism diagnosis can
   // count them as seek history.
-  const warmUp = [];
-  if (opts.warm !== false) {
-    for (const shot of meta.shots) {
-      await captureFrame(page, shot.readAt);
-      await captureFrame(page, shot.readAt);
-      warmUp.push(shot.readAt, shot.readAt);
-    }
-  }
-  return {
+  const session = {
     browser,
     page,
     meta,
     errors,
-    warmUp,
+    gl,
+    warmUp: [],
+    warmed: new Set(),
+    pictureReads,
     close: () => browser.close(),
   };
+  if (opts.warm !== false) {
+    await warmShotsOf(session, opts.warmShots ? opts.warmShots : meta.shots.map((s) => s.id));
+  }
+  return session;
+}
+
+/**
+ * Two throwaway captures at each named shot's readAt (openReel's warm-up),
+ * in timeline order, skipping shots this session already warmed.
+ * @param {{page: object, meta: {shots: {id: string, readAt: number}[]}, warmUp: number[], warmed: Set<string>}} session
+ * @param {Iterable<string>} shotIds
+ */
+export async function warmShotsOf(session, shotIds) {
+  const want = new Set(shotIds);
+  for (const shot of session.meta.shots) {
+    if (!want.has(shot.id) || session.warmed.has(shot.id)) continue;
+    await captureFrame(session.page, shot.readAt);
+    await captureFrame(session.page, shot.readAt);
+    session.warmUp.push(shot.readAt, shot.readAt);
+    session.warmed.add(shot.id);
+  }
+}
+
+// Runs in the page before any page script. Wraps the picture payload so
+// every read is noted in globalThis.__svaPictureReads; the values returned
+// are the payload's own, so what the page draws does not change.
+function installPictureState(p) {
+  const reads = { keys: {}, lang: false, all: false };
+  globalThis.__svaPictureReads = reads;
+  const note = (k) => {
+    if (typeof k === "string") reads.keys[k] = true;
+  };
+  const strings = new Proxy(p.strings && typeof p.strings === "object" ? p.strings : {}, {
+    get(t, k, r) {
+      note(k);
+      return Reflect.get(t, k, r);
+    },
+    has(t, k) {
+      note(k);
+      return Reflect.has(t, k);
+    },
+    getOwnPropertyDescriptor(t, k) {
+      note(k);
+      return Reflect.getOwnPropertyDescriptor(t, k);
+    },
+    ownKeys(t) {
+      reads.all = true;
+      return Reflect.ownKeys(t);
+    },
+  });
+  globalThis.__svaPicture = {
+    get lang() {
+      reads.lang = true;
+      return p.lang;
+    },
+    strings,
+  };
+}
+
+/**
+ * Every picture-string read the session's page has made since it opened
+ * (load, warm-up, probes, earlier segments, this one). A segment records
+ * this whole set: a page that read a string once and cached it draws that
+ * string without reading it again. Null for a session opened without
+ * `picture`.
+ * @param {{page: object, pictureReads: {keys: string[], lang: boolean, all: boolean}|null}} session
+ */
+export async function sessionPictureReads(session) {
+  if (!session.pictureReads) return null;
+  session.pictureReads = mergePictureReads(session.pictureReads, await takePictureReads(session.page));
+  return session.pictureReads;
+}
+
+/**
+ * Union of two picture-read records: keys merged, either flag wins; null
+ * when both are absent.
+ * @param {{keys: string[], lang: boolean, all: boolean}|null} a
+ * @param {{keys: string[], lang: boolean, all: boolean}|null} b
+ */
+export function mergePictureReads(a, b) {
+  if (!a && !b) return null;
+  const x = a || { keys: [], lang: false, all: false };
+  const y = b || { keys: [], lang: false, all: false };
+  return { keys: [...new Set([...x.keys, ...y.keys])].sort(), lang: !!(x.lang || y.lang), all: !!(x.all || y.all) };
+}
+
+/**
+ * The picture reads noted since the last call ({keys: sorted key names,
+ * lang: Reel.lang read, all: every key enumerated}), then starts a new count.
+ * @returns {Promise<{keys: string[], lang: boolean, all: boolean}>}
+ */
+export async function takePictureReads(page) {
+  return page.evaluate(() => {
+    const r = globalThis.__svaPictureReads;
+    if (!r) return { keys: [], lang: false, all: false };
+    const out = { keys: Object.keys(r.keys).sort(), lang: r.lang, all: r.all };
+    r.keys = {};
+    r.lang = false;
+    r.all = false;
+    return out;
+  });
 }
 
 // A page that throws before assigning window.__reel, whose `ready` rejects,
@@ -170,6 +440,8 @@ async function waitUntilReady({ page, browser, url, errors, ms }) {
     );
     step = "await window.__reel.ready";
     await withTimeout(page.evaluate(async () => { await window.__reel.ready; }), ms, step);
+    step = "await window.__reel.preload";
+    await withTimeout(page.evaluate(awaitPreload), ms, step);
   } catch (e) {
     await browser.close();
     const pageErrors = errors.length ? `\npage error(s):\n  ${errors.join("\n  ")}` : "\n(no page error was reported)";
@@ -254,6 +526,82 @@ export async function captureFrame(page, t) {
 /** Read window.__reel.issues() from the live page. */
 export async function readIssues(page) {
   return page.evaluate(() => (window.__reel.issues ? window.__reel.issues() : []));
+}
+
+// Engine issues that state a fact about the page (a label with no language
+// string, a corner note with no counterpart); the page may mean them.
+const ENGINE_FACT_TYPE = /^(note-|picture-string-missing$|overlay-text-missing$)/;
+
+/**
+ * Splits issues() entries into layout problems and engine facts.
+ * @param {{type?: string}[]} issues
+ * @returns {{layout: object[], facts: object[]}}
+ */
+export function splitEngineFacts(issues) {
+  const layout = [];
+  const facts = [];
+  for (const issue of issues || []) (issue && ENGINE_FACT_TYPE.test(String(issue.type)) ? facts : layout).push(issue);
+  return { layout, facts };
+}
+
+/**
+ * Report lines for engine facts: Reel.safeAreaNote() when set, then each
+ * distinct fact once with how many times it was recorded. Never a verdict.
+ * @param {{note?: string|null, facts?: object[]}} args
+ * @returns {string[]}
+ */
+export function engineFactLines({ note = null, facts = [] }) {
+  const lines = [];
+  if (note) lines.push(`note: ${note}`);
+  const byKey = new Map();
+  for (const f of facts) {
+    const { type, ...rest } = f;
+    const key = `${type} ${Object.entries(rest).map(([k, v]) => `${k}=${JSON.stringify(v)}`).join(" ")}`.trim();
+    byKey.set(key, (byKey.get(key) || 0) + 1);
+  }
+  for (const [key, n] of byKey) lines.push(`fact: ${key}${n > 1 ? ` (x${n})` : ""}`);
+  return lines;
+}
+
+/** Reel.safeAreaNote() of the live page, or null (no engine, or nothing to say). */
+export async function readSafeAreaNote(page) {
+  return page.evaluate(() => (window.Reel && typeof window.Reel.safeAreaNote === "function" ? window.Reel.safeAreaNote() : null));
+}
+
+/**
+ * Report lines for the drift guard's report (window.__reel.driftReport(), engine/reel-drift.js).
+ * A thrown guard stops the page load before this is read, so only graded notes arrive here.
+ * @param {{errors?: string[], notes?: string[], steps?: number}|null} report
+ * @returns {string[]}
+ */
+export function driftReportLines(report) {
+  if (!report) return [];
+  const notes = report.notes || [];
+  const head = `drift guard: ${report.steps ?? "?"} steps checked, ${notes.length ? `${notes.length} graded note(s) for you to judge` : "no drift"}`;
+  return [head, ...notes.map((n) => `drift note: ${n}`)];
+}
+
+/**
+ * Report lines for the page's parallax coverage (window.__reel.parallaxReport(), Reel.parallaxCoverage).
+ * Reports only: a layer whose edge is bare is named with its spans and the scale factor that fixes it.
+ * @param {{layers?: {layer: number, depth: number, overscan: number, spans: {from: number, to: number}[]}[]}|null} report
+ * @returns {string[]}
+ */
+export function parallaxReportLines(report) {
+  if (!report) return [];
+  const layers = report.layers || [];
+  if (!layers.length) return ["parallax coverage: every layer covers the frame along the camera path"];
+  const fmt = (s) => `${s.from.toFixed(2)}-${s.to.toFixed(2)} s`;
+  return [
+    `parallax coverage: ${layers.length} layer(s) leave a frame edge bare`,
+    ...layers.map((l) => `parallax layer ${l.layer} (depth ${l.depth}): edge bare at ${l.spans.map(fmt).join(", ")}; multiply its scale by ${l.overscan} or more`),
+  ];
+}
+
+/** Engine facts recorded so far on the live page, as report lines. */
+export async function readEngineFactLines(page) {
+  const { facts } = splitEngineFacts(await readIssues(page));
+  return engineFactLines({ note: await readSafeAreaNote(page), facts });
 }
 
 /**

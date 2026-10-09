@@ -6,6 +6,85 @@
   "required": ["meta", "lines"],
   "additionalProperties": false,
   "definitions": {
+    "corner": {
+      "type": "object",
+      "required": ["box"],
+      "additionalProperties": false,
+      "properties": {
+        "box": { "type": "array", "minItems": 4, "maxItems": 4, "items": { "type": "number" }, "description": "[x0, y0, x1, y1] in canvas px: the corner box the label or logo occupies." },
+        "label": { "type": "string", "description": "The text the corner's own label draws (omit for a logo); it is not reported as an intruder." }
+      }
+    },
+    "pageContract": {
+      "type": "object",
+      "description": "Optional window.__reel declarations a page makes for the tools (not part of plan.json; validate a page dump against #/definitions/pageContract). The engine checks the same shapes and throws on a malformed entry.",
+      "additionalProperties": true,
+      "properties": {
+        "regions": {
+          "type": "array",
+          "description": "Boxes in canvas px that state-checks.mjs --only covers (and reserve) compares. No from/to = the whole film; kind \"overlay\" = an always-on mark (logo, watermark); kind \"reserve\" = a corner box kept clear for a persistent label or logo (Reel.cornerRegions(meta.corners)).",
+          "items": {
+            "type": "object",
+            "required": ["id", "kind", "box"],
+            "additionalProperties": false,
+            "properties": {
+              "id": { "type": "string", "minLength": 1 },
+              "kind": { "type": "string", "enum": ["key", "label", "overlay", "reserve"] },
+              "text": { "type": "string", "description": "A reserve region's own label text; state-checks.mjs --only reserve does not report it as an intruder." },
+              "box": { "type": "array", "minItems": 4, "maxItems": 4, "items": { "type": "number" }, "description": "[x0, y0, x1, y1] with x1 > x0 and y1 > y0." },
+              "outline": { "type": "number", "minimum": 0, "description": "Outline width in px, added around the box when it is compared." },
+              "from": { "type": "number" },
+              "to": { "type": "number" }
+            }
+          }
+        },
+        "holds": {
+          "type": "array",
+          "description": "Intentional slow-motion or hold spans: review does not flag dead air inside them.",
+          "items": {
+            "type": "object",
+            "required": ["from", "to"],
+            "additionalProperties": false,
+            "properties": {
+              "from": { "type": "number" },
+              "to": { "type": "number" },
+              "id": { "type": "string" },
+              "reason": { "type": "string" }
+            }
+          }
+        },
+        "captionFonts": {
+          "type": "object",
+          "additionalProperties": { "type": "string" },
+          "description": "CSS font-family list per language tag; \"*\" is the fallback."
+        },
+        "langSpans": {
+          "type": "array",
+          "description": "Seconds where the picture draws language-dependent text. in \"layer\" (default): the caption layer draws it. in \"scene\": the text is inside the 3D picture, so a dub needs its own picture render for the span.",
+          "items": {
+            "type": "object",
+            "required": ["start", "end"],
+            "additionalProperties": false,
+            "properties": {
+              "start": { "type": "number" },
+              "end": { "type": "number" },
+              "in": { "type": "string", "enum": ["layer", "scene"] }
+            }
+          }
+        }
+      }
+    },
+    "sfxCue": {
+      "type": "object",
+      "description": "An entry of the page's SFX_CUES. window.__reel.sfxStems(sampleRate) renders only cues flagged card: true (every cue when none is flagged), so a film with a thousand cues does not hand a thousand stems to sfx-cards.mjs.",
+      "required": ["kind", "at"],
+      "properties": {
+        "kind": { "type": "string" },
+        "at": { "type": "number" },
+        "id": { "type": "string" },
+        "card": { "type": "boolean", "description": "true: this cue has a sound card (sound-cards.json) and its stem is measured." }
+      }
+    },
     "voice": {
       "type": "object",
       "additionalProperties": false,
@@ -22,6 +101,19 @@
         "emotionIntensity": { "type": "number", "minimum": 0, "maximum": 2, "description": "typecast: emotion_intensity (default 1)." },
         "removeSilenceMs": { "type": "integer", "minimum": 0, "maximum": 1000, "description": "typecast: cap detected silence at this retained duration. Omit to disable. For existing audio, use audio-edit.mjs locally instead of regenerating." },
         "voiceId": { "type": "string" },
+        "cut": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Margins of the per-line cut of a joined request (seconds); defaults in scripts/lib/line-split.mjs DEFAULT_CUT.",
+          "properties": {
+            "headKeepSec": { "type": "number", "minimum": 0, "description": "A clip starts this long before its first word (default 0.1)." },
+            "minTailSec": { "type": "number", "minimum": 0, "description": "A clip ends at least this long after its last word when the gap allows (default 0.2)." },
+            "maxTailSec": { "type": "number", "minimum": 0, "description": "A clip ends at most this long after its last word (default 0.6)." },
+            "guardSec": { "type": "number", "minimum": 0, "description": "A clip stops this long before the next line's first word (default 0.02)." },
+            "fadeInSec": { "type": "number", "minimum": 0, "description": "Fade-in at the head (default 0.02)." },
+            "fadeOutSec": { "type": "number", "minimum": 0, "description": "Fade-out at the cut (default 0.03)." }
+          }
+        },
         "rate": { "type": "number", "exclusiveMinimum": 0, "description": "Speech speed (ffmpeg atempo, 0.8-1.3). Unset on a 9:16 film: 1.1." },
         "model": {
           "type": "string",
@@ -68,10 +160,13 @@
       "additionalProperties": false,
       "properties": {
         "title": { "type": "string", "minLength": 1 },
+        "filmKey": { "type": "string", "minLength": 1, "description": "Seeds this film's sound kit: the page calls ReelAudio.setFilmKey(meta.filmKey || meta.title || meta.id). Two films with the same key sound alike." },
+        "id": { "type": "string", "minLength": 1, "description": "The film's own id; the page's last-resort ReelAudio film key after meta.filmKey and meta.title." },
         "lang": { "type": "string", "default": "ko-KR", "pattern": "^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$" },
         "ratio": { "type": "string", "enum": ["9:16", "1:1", "16:9", "4:5"] },
         "fps": { "type": "integer", "minimum": 1, "maximum": 60, "default": 30 },
         "look": { "type": "string", "enum": ["2d", "3d"], "default": "2d", "description": "Informational: the film's visual style. Not read by any check." },
+        "cast": { "type": "string", "minLength": 1, "description": "Reusable cast JSON path, relative to this plan directory or absolute. Speaker language voices live only there." },
         "voice": { "$ref": "#/definitions/voice" },
         "pronounce": { "type": "object", "description": "Pronunciation dictionary: {\"<word>\": {\"say\": \"<respelling or replacement>\", \"ipa\": \"<IPA>\"}}. Applied to spoken text only; captions keep `text`. A line's entries override meta.pronounce. See references/readout.md." },
         "gapMs": { "type": "integer", "minimum": 0, "default": 700 },
@@ -83,7 +178,18 @@
         },
         "lead": {
           "oneOf": [{ "type": "number", "exclusiveMinimum": 0 }, { "type": "boolean", "enum": [true] }],
-          "description": "Opening before the first story line, in seconds; true = 3 s; absent = no lead. Every story line starts that much later and timings.json records `lead`. The lead must carry sound: a music bed from t=0 (meta.sound.bed), a sound cue inside it, or an opening line marked `lead: true` (validate-plan.mjs fails a lead with none)."
+          "description": "Opening before the first story line, in seconds; true = 3 s; absent = no lead. Every story line starts that much later and timings.json records `lead`. The lead must carry sound: a music bed from t=0 (meta.sound.bed), a sound cue inside it, an opening line marked `lead: true`, or sound the page makes itself (meta.sound.page) (validate-plan.mjs fails a lead with none)."
+        },
+        "corners": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Only for a film with a persistent label or logo in one or more of the four corners: each corner it uses (tl, tr, bl, br) and the box it occupies in canvas px. The page keeps these boxes clear from the first build (Reel.cornerRegions(meta.corners) gives the page's regions of kind \"reserve\"); state-checks.mjs --only reserve reports picture text inside one. See references/pipeline.md \"Corner reserve\".",
+          "properties": {
+            "tl": { "$ref": "#/definitions/corner" },
+            "tr": { "$ref": "#/definitions/corner" },
+            "bl": { "$ref": "#/definitions/corner" },
+            "br": { "$ref": "#/definitions/corner" }
+          }
         },
         "overlay": {
           "type": "object",
@@ -100,7 +206,9 @@
           "additionalProperties": false,
           "properties": {
             "bed": { "type": "boolean", "description": "true when the page's music bed plays from t=0. It counts as the lead's sound (meta.lead)." },
-            "sfxDuckDb": { "type": "number", "default": -6, "description": "Gain (dB) applied to library cue sounds while a narration line speaks, ~80ms ramps (references/sound.md \"Mix\"); 0 turns ducking off. The music bed keeps its own -10dB duck." }
+            "page": { "type": "boolean", "description": "true when the page itself makes sound inside the lead (its SFX_CUES kit or custom cues, or its own sound path with sync marks). It counts as the lead's sound (meta.lead); cue-check.mjs --page lists the page's marks with their times." },
+            "fadeOutSec": { "type": "number", "minimum": 0, "description": "Final bed fade in seconds, default 0.03. Set 0 only for a deliberate hard cut." },
+            "sfxDuckDb": { "type": "number", "default": -2.5, "description": "Gain (dB) applied to library cue sounds while a narration line speaks, 0.8 s ramps, narration gaps under 1.5 s stay ducked (references/sound.md \"Mix\"); 0 turns ducking off. The music bed keeps its own -10dB duck." }
           }
         }
       }
@@ -110,7 +218,11 @@
       "additionalProperties": false,
       "properties": {
         "palette": { "type": "array", "items": { "type": "string" } },
-        "fonts": { "type": "object" },
+        "fonts": {
+          "type": "object",
+          "additionalProperties": { "type": "string" },
+          "description": "CSS font-family lists by use: a language tag (\"ko\", \"ja-JP\"), \"caption\", \"body\", \"default\". state-checks.mjs --only langglyphs reads a language's list as the page's captionFonts[lang], then captionFonts[\"*\"], then this object's [lang], caption, body, default."
+        },
         "motifs": { "type": "array", "items": { "type": "string" } },
         "boilHz": { "type": "number", "exclusiveMinimum": 0 }
       }
@@ -128,7 +240,28 @@
           "say": {
             "type": "string",
             "minLength": 1,
-            "description": "Optional spoken-form override for TTS (e.g. '엠씨피' for 'MCP'). May carry delivery marks in curly braces (e.g. {confident}, {pause}); each provider translates them into its own model tags or drops them (references/voice.md \"Delivery marks\"). Captions and timings.json `text` always show `text`; voice.mjs synthesizes `say ?? text`."
+            "description": "Optional spoken-form override for TTS (e.g. '엠씨피' for 'MCP'). May carry delivery marks in curly braces (e.g. {confident}, {pause}); each provider translates them into its own model tags or drops them (references/voice.md \"Delivery marks\"). Captions and timings.json `text` always show `text`; voice.mjs synthesizes `say ?? text`. validate-plan.mjs warns when `say` still differs from `text` after numbers, pronounce respellings, punctuation and marks are folded (character error rate > 0.3): a say left from an older text. Write the reason in `sayWhy` when it differs on purpose."
+          },
+          "sayWhy": { "type": "string", "minLength": 1, "description": "Why `say` differs from `text` on purpose (e.g. \"brand name read by letter\"). Never spoken or shown; validate-plan.mjs leaves a line with a sayWhy out of its stale-say warning." },
+          "pauseBeforeMs": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Silence before this line in ms, after the previous line's pause: the picture plays this long before the line starts (first line: after the head). Recorded in timings.json as pauseBeforeSec."
+          },
+          "notes": {
+            "type": "array",
+            "description": "Corner notes drawn in the caption step (Reel.cornerNotes): wording from this plan's line, timing from this language's word times.",
+            "items": {
+              "type": "object",
+              "required": ["at", "text"],
+              "additionalProperties": false,
+              "properties": {
+                "at": { "type": "string", "pattern": "^(start|word:.+)$", "description": "\"start\" | \"word:<text>\" — the first word of the line that contains <text>." },
+                "text": { "type": "string", "minLength": 1 },
+                "corner": { "type": "string", "enum": ["tl", "tr", "bl", "br"], "description": "Default \"tr\"." },
+                "holdSec": { "type": "number", "exclusiveMinimum": 0, "description": "How long the note stays, default 3.5." }
+              }
+            }
           },
           "lead": { "type": "boolean", "description": "true marks an opening line spoken inside the lead (meta.lead). Lead lines are the first lines of the plan; the story starts after the lead." },
           "lang": {
@@ -152,6 +285,7 @@
             "enum": ["normal", "happy", "sad", "angry", "whisper", "toneup", "tonedown"],
             "description": "typecast only: this line's emotion preset when it differs from the voice's. The line is made in its own request, outside the one-read batch. Providers with inline tags take an {emotion} mark in `say` instead (references/voice.md)."
           },
+          "speaker": { "type": "string", "minLength": 1, "description": "Speaker ID in meta.cast. Resolve the voice from that speaker and this line language." },
           "voice": {
             "$ref": "#/definitions/voice",
             "description": "This line's own voice, for a film with several speakers: any meta.voice keys, merged over meta.voice for this line (line keys win). Works the same in dub/<code>/plan.json. timings.json records each line's resolved provider and voiceId."
@@ -179,7 +313,12 @@
                   "type": "string",
                   "enum": ["sound", "picture", "both"],
                   "description": "Default: \"sound\" for role sfx, \"both\" for role reaction."
-                }
+                },
+                "fadeInSec": { "type": "number", "minimum": 0, "description": "Fade-in length in seconds; default none." },
+                "fadeOutSec": { "type": "number", "minimum": 0, "description": "Fade-out length in seconds; default 0.03, or 0.6 (at most half the cue) with endsAtCut." },
+                "endsAtCut": { "type": "boolean", "description": "The cue's sound ends at a picture cut: its default fade-out is 0.6 s." },
+                "track": { "type": "string", "minLength": 1, "description": "Cues on one track can crossfade (crossfadeSec)." },
+                "crossfadeSec": { "type": "number", "exclusiveMinimum": 0, "description": "With a track: this cue runs this long past the start of the next cue on the track and fades out over it while that cue fades in." }
               }
             }
           }

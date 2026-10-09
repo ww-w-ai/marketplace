@@ -5,7 +5,7 @@ import path from "node:path";
 import { ffmpeg } from "../lib/ffmpeg.mjs";
 import { decodeMonoPcm } from "../lib/audio-analysis.mjs";
 import { writeWavPCM16 } from "../lib/wav.mjs";
-import { planCuts, cutClips, withSentenceEnd, groupByChars } from "../lib/line-split.mjs";
+import { planCuts, cutClips, withSentenceEnd, groupByChars, sentLength, refuseOversize } from "../lib/line-split.mjs";
 
 export const name = "typecast";
 
@@ -137,13 +137,14 @@ async function requestSpeech(apiKey, body) {
  */
 export async function synthBatch(items, ctx) {
   const { lang, voiceCfg } = ctx || {};
+  refuseOversize(items, { limit: BATCH_MAX_CHARS, provider: "typecast" });
   if (items.length === 1) {
     const [it] = items;
     return [{ id: it.id, ...(await synth({ text: it.text, voice: voiceCfg && voiceCfg.voiceId, lang, voiceCfg, outPath: it.outPath })) }];
   }
   const { apiKey, voiceId } = credentials(voiceCfg && voiceCfg.voiceId);
   const results = [];
-  for (const group of groupByChars(items, BATCH_MAX_CHARS)) {
+  for (const group of groupByChars(items, BATCH_MAX_CHARS, sentLength)) {
     results.push(...(await speakAndCut(group, { apiKey, voiceId, lang, voiceCfg })));
   }
   return results;
@@ -165,14 +166,29 @@ async function speakAndCut(items, { apiKey, voiceId, lang, voiceCfg }) {
   } finally {
     fs.rmSync(scratch, { force: true });
   }
-  const plan = planCuts({ samples, sr: SAMPLE_RATE, texts: sent, words: json.words });
+  const plan = planCuts({ samples, sr: SAMPLE_RATE, texts: sent, words: json.words, cutOptions: voiceCfg && voiceCfg.cut });
   if (!plan) {
     process.stderr.write("note: typecast words and silences do not split into the lines; sending one request per line\n");
     const out = [];
     for (const it of items) out.push({ id: it.id, ...(await synth({ text: it.text, voice: voiceId, lang, voiceCfg, outPath: it.outPath })) });
     return out;
   }
-  return cutClips(items, samples, SAMPLE_RATE, plan, (k, from) => plan.lineWords && wordsFromTypecast(plan.lineWords[k], -from), writeWavPCM16);
+  return cutClips(items, samples, SAMPLE_RATE, plan, (k, from) => plan.lineWords && wordsFromTypecast(plan.lineWords[k], -from), writeWavPCM16, voiceCfg && voiceCfg.cut);
+}
+
+/**
+ * The voices the account can use with `model` (default ssfm-v30), as the service lists them.
+ * The key is sent in a header and never printed.
+ * @param {{model?:string}} [opts]
+ * @returns {Promise<object[]>}
+ */
+export async function listVoices(opts = {}) {
+  const apiKey = process.env.TYPECAST_API_KEY;
+  if (!apiKey) throw new Error("TYPECAST_API_KEY is not set. Export it to list voices.");
+  const res = await fetch(`https://api.typecast.ai/v2/voices?model=${encodeURIComponent(opts.model || DEFAULT_MODEL)}`, { headers: { "X-API-KEY": apiKey } });
+  if (!res.ok) throw new Error(`Typecast voice list failed: ${res.status} ${res.statusText}`);
+  const json = await res.json();
+  return Array.isArray(json) ? json : json.voices || json.result || [];
 }
 
 /**

@@ -1,10 +1,136 @@
 // Pure helpers voice.mjs uses to edit an existing narration without
 // re-synthesis: choosing among takes (--pick-by), carrying measured word
 // times across a partial rebuild, the dub-folder note, the STT language, and
-// inserting a pause into a finished line (--insert-pause). No TTS, no STT,
+// inserting a pause into a finished line (--insert-pause), and fitting a
+// re-made take into the slot of the one it replaces. No TTS, no STT,
 // no ffmpeg here — only arithmetic and PCM16 WAV bytes.
 import fs from "node:fs";
 import path from "node:path";
+import { fitLineToSlot, MIN_BREATH_SEC, MAX_BREATH_SEC, MIN_ATEMPO, MAX_ATEMPO_DEFAULT } from "../lib/dub-timing.mjs";
+
+/** A re-made take within this many seconds of the old clip's length counts as the same length. */
+export const SAME_LENGTH_SEC = 0.005;
+
+/**
+ * Each previous line's slot: its start to the next line's start (the clip and the silence after it);
+ * the last line's slot is its clip plus the planned pause. The re-take limit.
+ * @param {{id:string, start:number, end:number}[]} prevLines timings.json lines of the run being edited
+ * @param {{id:string, pauseAfterMs?:number}[]} planLines
+ * @param {number} gapMs meta.gapMs
+ * @returns {Map<string, {slotSec:number, oldClipSec:number}>}
+ */
+export function previousSlots(prevLines, planLines, gapMs) {
+  const planned = new Map(planLines.map((l) => [l.id, l]));
+  const slots = new Map();
+  prevLines.forEach((l, i) => {
+    const oldClipSec = l.end - l.start;
+    const pauseSec = ((planned.get(l.id) || {}).pauseAfterMs ?? gapMs) / 1000;
+    const next = prevLines[i + 1];
+    slots.set(l.id, { slotSec: next ? next.start - l.start : oldClipSec + Math.max(pauseSec, MIN_BREATH_SEC), oldClipSec });
+  });
+  return slots;
+}
+
+/**
+ * The pause a take that borrowed breath leaves in `timings.json` (`borrowedPause`), so a later rebuild
+ * that reuses the clip lays the same pause and the next line keeps its start.
+ * @param {number} plannedSec the pause the plan asked for after the line
+ * @param {number} laidSec the shorter pause laid after the longer clip
+ * @returns {{plannedSec:number, laidSec:number}}
+ */
+export function borrowedPauseRecord(plannedSec, laidSec) {
+  return { plannedSec, laidSec };
+}
+
+/**
+ * The pause to lay after a reused line: the borrowed one from the earlier run while the plan's pause is
+ * still the one it was borrowed from, else null (the plan's own pause applies).
+ * @param {{borrowedPause?:{plannedSec:number, laidSec:number}}|undefined} prevLine the line in the earlier timings.json
+ * @param {number} plannedSec the pause the plan asks for now
+ * @returns {number|null}
+ */
+export function carriedBorrowedGap(prevLine, plannedSec) {
+  const b = prevLine && prevLine.borrowedPause;
+  if (!b || !Number.isFinite(b.plannedSec) || !Number.isFinite(b.laidSec)) return null;
+  return Math.abs(b.plannedSec - plannedSec) < 1e-3 ? b.laidSec : null;
+}
+
+/**
+ * Plan lines to rebuild around a set of picks: every line that has audio or is picked. A line with no
+ * clip yet (new text) cannot be reused, so it waits for `--lines <ids>` or a full pass.
+ * @param {{id:string}[]} planLines
+ * @param {string[]} pickedIds
+ * @param {(id:string)=>boolean} hasClip
+ * @returns {{lines:{id:string}[], waiting:string[]}}
+ */
+export function splitPlanByAudio(planLines, pickedIds, hasClip) {
+  const picked = new Set(pickedIds);
+  const waiting = planLines.filter((l) => !picked.has(l.id) && !hasClip(l.id)).map((l) => l.id);
+  const left = new Set(waiting);
+  return { lines: planLines.filter((l) => !left.has(l.id)), waiting };
+}
+
+/**
+ * Whether a re-made base-language take fits the slot of the take it replaces, in the order dub.mjs
+ * fits a language: speed up by at most 10% when too long, keep at least 0.5 s of breath after it,
+ * slow down (not below 0.95x) to close a voice-free gap over 1.0 s. A gap the film already had
+ * (a planned pause) is not counted against the take.
+ * @returns {ReturnType<typeof fitLineToSlot>}
+ */
+export function planRetakeFit(takeSec, { slotSec, oldClipSec }) {
+  const maxBreathSec = Math.max(MAX_BREATH_SEC, slotSec - oldClipSec);
+  return fitLineToSlot(takeSec, slotSec, MAX_ATEMPO_DEFAULT, { minBreathSec: MIN_BREATH_SEC, maxBreathSec, minAtempo: MIN_ATEMPO });
+}
+
+/**
+ * The line printed for a re-made or picked take: its length against the slot and against the take it
+ * replaces, and what the fit does. A take that needs more than the speed limit says it is refused.
+ */
+export function retakeFitMessage(id, takeSec, slot, fit) {
+  const head = `${id}: take ${takeSec.toFixed(2)}s, slot ${slot.slotSec.toFixed(2)}s, existing take ${slot.oldClipSec.toFixed(2)}s`;
+  if (!fit.ok) {
+    return `${head} — refused: needs ${fit.requiredFactor.toFixed(2)}x to fit its slot (limit ${fit.maxAtempo}x), not installed; the old take stays. Shorten the line's text or say, or re-synthesize it`;
+  }
+  const how = fit.atempoFactor > 1.0005 ? `sped up ${fit.atempoFactor.toFixed(2)}x` : fit.atempoFactor < 0.9995 ? `slowed to ${fit.atempoFactor.toFixed(2)}x` : "as is";
+  const notes = [`${fit.breathSec.toFixed(2)}s of silence after it`];
+  if (fit.breathShort) notes.push(`under the ${MIN_BREATH_SEC}s breath`);
+  if (fit.longGap) notes.push(`voice-free gap over ${MAX_BREATH_SEC}s: a longer take or a rewrite closes it`);
+  return `${head} — fits (${how}; ${notes.join("; ")})`;
+}
+
+/**
+ * The seconds each line has on the picture, for the lines of a reel kept with `--retime` or a dub folder:
+ * a reel's own previous slots, or in a dub folder the base reel's lines (`<reel>/voice/timings.json`, each
+ * line to the next line's start, the last to the film's end). Empty when there is no such timings file.
+ * @param {string} dir the reel (or dub) directory voice.mjs ran on
+ * @param {Map<string, {slotSec:number}>} oldSlots previousSlots of the reel being edited
+ * @returns {Map<string, number>}
+ */
+export function pictureSlotSecs(dir, oldSlots) {
+  if (!dubCode(dir)) return new Map([...oldSlots].map(([id, s]) => [id, s.slotSec]));
+  const baseFile = path.join(path.resolve(dir), "..", "..", "voice", "timings.json");
+  if (!fs.existsSync(baseFile)) return new Map();
+  const base = JSON.parse(fs.readFileSync(baseFile, "utf8"));
+  const lines = base.lines || [];
+  return new Map(lines.map((l, i) => [l.id, (i === lines.length - 1 ? base.duration : lines[i + 1].start) - l.start]));
+}
+
+/**
+ * The line printed when a take is installed without being fitted (`--retime`, or a dub folder): its length
+ * against the slot it has on the picture, as a ratio. Over 1 means the take is longer than the slot.
+ */
+export function retimeRatioMessage(id, takeSec, slotSec, reason) {
+  const ratio = takeSec / slotSec;
+  const verdict = ratio > 1 ? `${((ratio - 1) * 100).toFixed(1)}% over its slot` : `${((1 - ratio) * 100).toFixed(1)}% under its slot`;
+  return `${id}: take ${takeSec.toFixed(2)}s against slot ${slotSec.toFixed(2)}s = ${ratio.toFixed(3)}x (${verdict}); installed at its own length (${reason})`;
+}
+
+/** The "slot" column of the takes table: what fitting this take into its slot takes. */
+export function fitColumn(fit) {
+  if (!fit) return "-";
+  if (!fit.ok) return `over (needs ${fit.requiredFactor.toFixed(2)}x)`;
+  return fit.atempoFactor > 1.0005 ? `${fit.atempoFactor.toFixed(2)}x` : fit.atempoFactor < 0.9995 ? `${fit.atempoFactor.toFixed(2)}x slowed` : "fits";
+}
 
 /** `<reel>/dub/<code>/` → "<code>", anything else → null. */
 export function dubCode(dir) {
@@ -27,7 +153,20 @@ export function partialRebuildNote(dir, moved) {
     const shifted = moved.length ? ` Lines with a shifted start: ${moved.join(", ")}.` : "";
     return `dub folder (dub/${code}/): the picture does not move — run dub.mjs --lang ${code} to re-place the lines.${shifted}\n`;
   }
-  return moved.length ? `lines with shifted start (their shots will re-render): ${moved.join(", ")}\n` : "";
+  if (!moved.length) return "";
+  const stale = staleDubTracks(dir);
+  const placed = stale.length ? `dub tracks placed on the old times (${stale.join(", ")}): run dub.mjs --lang <code> again for each\n` : "";
+  return `lines with shifted start (their shots will re-render): ${moved.join(", ")}\n${placed}`;
+}
+
+/** Language codes under <reel>/dub/ that already hold a timings.placed.json. */
+function staleDubTracks(dir) {
+  const root = path.join(path.resolve(dir), "dub");
+  try {
+    return fs.readdirSync(root).filter((code) => fs.existsSync(path.join(root, code, "timings.placed.json"))).sort();
+  } catch {
+    return [];
+  }
 }
 
 /**
@@ -45,13 +184,24 @@ export function parsePickBy(value) {
 
 /**
  * The take number to install for one line.
- * @param {{k:number, lengthSec:number, cer:number|null}[]} rows that line's takes
+ * A row with `fits: false` runs over the line's slot and is never chosen; when no row fits the call
+ * throws an error with `code: "NO_FIT"`. The take already installed is row k = 0: it competes on
+ * the same score and wins ties, and a result of 0 means "keep the installed clip".
+ * @param {{k:number, lengthSec:number, cer:number|null, fits?:boolean, needs?:number}[]} rows that line's takes
  * @param {{by:"length", sec:number} | {by:"stt"}} pickBy
  * @returns {number} k — ties go to the lower take number
  */
 export function chooseTake(rows, pickBy) {
+  const fitting = rows.filter((r) => r.fits !== false);
+  const takes = rows.filter((r) => !r.installed);
+  if (takes.length && !fitting.some((r) => !r.installed)) {
+    const least = Math.min(...takes.map((r) => r.needs ?? Infinity));
+    const err = new Error(`--pick-by: no take of "${takes[0].id}" fits its slot (the closest needs ${Number.isFinite(least) ? `${least.toFixed(2)}x` : "more speed"}, limit ${MAX_ATEMPO_DEFAULT}x) — shorten the line or re-synthesize it`);
+    err.code = "NO_FIT";
+    throw err;
+  }
   const score = pickBy.by === "length" ? (r) => Math.abs(r.lengthSec - pickBy.sec) : (r) => r.cer;
-  const candidates = rows.filter((r) => score(r) != null && Number.isFinite(score(r)));
+  const candidates = fitting.filter((r) => score(r) != null && Number.isFinite(score(r)));
   if (!candidates.length) {
     throw new Error(pickBy.by === "stt" ? "--pick-by stt: no take has an STT result (is SVA_STT_PYTHON set?)" : "--pick-by: no takes to choose from");
   }
@@ -82,7 +232,7 @@ export function carriedWords(prevLine, timedText, newStart, strip = (s) => s) {
   }));
 }
 
-/** meta.lang ("ko-KR", "en-US", ...) -> a faster-whisper language code. */
+/** meta.lang ("ko-KR", "en-US", ...) -> a Whisper language code. */
 export function sttLangCode(lang) {
   const s = String(lang || "ko").toLowerCase();
   return s.slice(0, 2) || "ko";

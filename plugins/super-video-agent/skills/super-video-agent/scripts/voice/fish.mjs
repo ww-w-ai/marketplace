@@ -4,7 +4,7 @@ import path from "node:path";
 import { ffmpeg } from "../lib/ffmpeg.mjs";
 import { decodeMonoPcm } from "../lib/audio-analysis.mjs";
 import { writeWavPCM16 } from "../lib/wav.mjs";
-import { planCuts, cutClips, withSentenceEnd, groupByChars } from "../lib/line-split.mjs";
+import { planCuts, cutClips, withSentenceEnd, groupByChars, sentLength, refuseOversize } from "../lib/line-split.mjs";
 
 export const name = "fish";
 
@@ -84,8 +84,9 @@ async function requestSpeech({ apiKey, referenceId }, text, voiceCfg) {
  */
 export async function synthBatch(items, ctx) {
   const voiceCfg = ctx && ctx.voiceCfg;
+  refuseOversize(items, { limit: BATCH_MAX_CHARS, provider: "fish" });
   const results = [];
-  for (const group of groupByChars(items, BATCH_MAX_CHARS)) {
+  for (const group of groupByChars(items, BATCH_MAX_CHARS, sentLength)) {
     results.push(...(await speakAndCut(group, voiceCfg)));
   }
   return results;
@@ -105,8 +106,8 @@ async function speakAndCut(items, voiceCfg) {
     } finally {
       fs.rmSync(scratch, { force: true });
     }
-    const plan = planCuts({ samples, sr: SAMPLE_RATE, texts: sent });
-    if (plan) return cutClips(items, samples, SAMPLE_RATE, plan, null, writeWavPCM16);
+    const plan = planCuts({ samples, sr: SAMPLE_RATE, texts: sent, cutOptions: voiceCfg && voiceCfg.cut });
+    if (plan) return cutClips(items, samples, SAMPLE_RATE, plan, null, writeWavPCM16, voiceCfg && voiceCfg.cut);
     process.stderr.write("note: fish silences do not split into the lines; sending one request per line\n");
   }
   const out = [];
