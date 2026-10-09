@@ -138,7 +138,7 @@
     {
       "name": "super-video-agent",
       "description": "Turn a PDF, essay, card news or topic into a narrated film where every frame is drawn in code: Shorts, 16:9, square or 3D. Voice first, read-out rules for any language, and after the render fix one line, one scene or one language without touching the rest.",
-      "version": "1.8.0",
+      "version": "1.8.1",
       "source": {
         "source": "url",
         "url": "https://github.com/ww-w-ai/super-video-agent.git"
