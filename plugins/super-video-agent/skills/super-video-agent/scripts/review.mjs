@@ -17,13 +17,13 @@ import { groupIssueRuns } from "./lib/layout-scan.mjs";
 import { captionLayerAliases, placedDuration, serveDirWithAliases } from "./lib/layout-scan-serve.mjs";
 import { markOnsetOffset } from "./lib/sync-marks.mjs";
 import { sameLanguageTag } from "./lib/lang-tag.mjs";
-import { extractGrayFrames, analyzeMotion, FREEZE_SCAN_WIDTH } from "./lib/frame-diff.mjs";
+import { FREEZE_SCAN_WIDTH, FREEZE_FRACTION, FREEZE_RECHECK_SEC } from "./lib/freeze-scan.mjs";
 import { loudnessSpread } from "./lib/join-report.mjs";
 import {
   probeStreamDurations,
   partSpans,
   measureSpansLoudness,
-  detectBlackRuns,
+  scanFilePicture,
 } from "./lib/join-report-media.mjs";
 import {
   measureLoudness,
@@ -34,7 +34,8 @@ import {
 } from "./lib/audio-analysis.mjs";
 import { gapsFromPcm, silenceNote } from "./lib/silence-gate.mjs";
 import { loudnessUnderTarget } from "./lib/audio-mix.mjs";
-import { findClipDefects, describeDefects, waveformFlag } from "./voice/take-check.mjs";
+import { findClipDefects, withEndCut, describeDefects, waveformFlag } from "./voice/take-check.mjs";
+import { rawTakeStatus, rawTakePath } from "./lib/raw-take.mjs";
 import { checkedNothingNext } from "./lib/checked-nothing.mjs";
 
 const HELP = `usage: review.mjs <reel-dir> [--mp4 <path>]
@@ -47,7 +48,9 @@ readAt, with timestamps), scans for dead air, compares audio/video
 duration, and collects layout issues(). Writes
 <reel-dir>/out/review.json and prints a human summary. The summary also lists
 fresh voice clip facts measured from current line audio (HEAD, TAIL, DIP, PAUSE
-per line). Stored clipFacts are ignored; unavailable clips are reported unchecked.
+per line, and END_CUT: the clip lost the end of its last syllable that its
+current raw take voice/raw/<id>.wav has). Stored clipFacts are ignored;
+unavailable clips are reported unchecked.
 
 --mp4   path to an already-rendered video (default: out/final.mp4, or
         out/preview.mp4, or render a preview now if neither exists).
@@ -79,7 +82,8 @@ per line). Stored clipFacts are ignored; unavailable clips are reported unchecke
 --holds with --file: spans (seconds, "12.5-15,40-44") where the picture is meant to move slowly or hold;
         a freeze inside them is listed as an intended hold, not flagged. In a reel review the page declares
         them: window.__reel.holds = [{from, to}]. The freeze test reads 320-px frames (64 px read slow
-        movement as frozen).
+        movement as frozen). The file is decoded once; freeze, black and frame-count facts all read
+        that one decode.
 --copy  review copy, for showing a film to a reviewer: for each language layer (the base language, and every
         dub/<code>/ that has an out/final-<code>.mp4) the existing encode, which carries picture, voice and
         bed, is stream-copied into <out>/review-copy-<code>.mp4 with one subtitle track whose cues read
@@ -102,6 +106,7 @@ const SYNC_OFFSET_MAX_MS = 40;
 const DEAD_AIR_STEP_SEC = 0.1;
 const DEAD_AIR_RUN_SEC_MIN = 0.8;
 const DENSE_SCAN_STEP_SEC_DEFAULT = 0.1;
+const FREEZE_METHOD_NOTE = `Sampled every ${DEAD_AIR_STEP_SEC} s (frame at t vs the next frame); a run of unchanged samples is re-checked at every frame ${FREEZE_RECHECK_SEC} s either side.`;
 
 export async function main(argv) {
   const { positional, flags } = parseArgs(argv);
@@ -410,9 +415,10 @@ export function parseHolds(text) {
 /**
  * --file: facts about one finished video, no page. Every number is
  * reported; nothing here decides whether the video is good.
- * @param {{file:string, cuts:number[], holds?:{from:number,to:number}[]}} args holds = intended slow-motion / hold spans
+ * @param {{file:string, cuts:number[], holds?:{from:number,to:number}[], spawnFn?:Function}} args holds = intended
+ *   slow-motion / hold spans; spawnFn = the picture decode's process spawner (a test counts decodes with it)
  */
-export async function reviewFile({ file, cuts, holds = [] }) {
+export async function reviewFile({ file, cuts, holds = [], spawnFn }) {
   const streams = await probeStreamDurations(file);
   const totalSec = streams.videoSec != null ? streams.videoSec : await probeDuration(file);
   const avDeltaMs =
@@ -423,18 +429,17 @@ export async function reviewFile({ file, cuts, holds = [] }) {
   const partLoudness = cuts.length ? await measureSpansLoudness(file, spans) : [];
   const parts = partLoudness.map((l, i) => ({ ...spans[i], ...l }));
 
-  const { fps } = await probeVideoInfo(file);
-  const { frames } = await extractGrayFrames(file, fps, { width: FREEZE_SCAN_WIDTH });
-  const { deadAirRuns, intendedHoldRuns } = analyzeMotion(frames, fps, { holds });
+  const { width, height, fps } = await probeVideoInfo(file);
+  const picture = await scanFilePicture(file, { width, height, fps, expectedSec: streams.videoSec, spawnFn });
+  const { runs: deadAirRuns, intendedHolds: intendedHoldRuns } = splitIntendedHolds(picture.freezeRuns, holds, DEAD_AIR_RUN_SEC_MIN);
 
   const hasAudio = streams.audioSec != null;
   const pcm = hasAudio ? await decodeMonoPcm(file, AUDIO_SAMPLE_RATE) : new Float32Array(0);
   const silence = longestSilenceAfterFirstSound(pcm, AUDIO_SAMPLE_RATE, { thresholdDb: -50 });
-  const blackRuns = await detectBlackRuns(file, { minSec: 1 / fps });
   const checkedNothing = [];
   if (!hasAudio) checkedNothing.push({ check: "silence", reason: "the file has no audio stream" });
   else if (!Number.isFinite(silence.firstSoundSec)) checkedNothing.push({ check: "silence", reason: "no sound above the threshold, so there is no first sound to measure from" });
-  if (frames.length < 2) checkedNothing.push({ check: "deadAir", reason: `${frames.length} decoded frame(s); a freeze needs two` });
+  if (picture.frames.decoded < 2) checkedNothing.push({ check: "deadAir", reason: `${picture.frames.decoded} decoded frame(s); a freeze needs two` });
 
   return {
     file,
@@ -448,10 +453,12 @@ export async function reviewFile({ file, cuts, holds = [] }) {
     deadAir: {
       runs: deadAirRuns,
       intendedHolds: intendedHoldRuns,
-      note: `runs of >=0.8 s where under 0.2 % of ${FREEZE_SCAN_WIDTH}-px greyscale pixels change between frames; spans given with --holds are listed as intended holds, not flagged`,
+      recheckSpans: picture.recheckSpans,
+      note: `runs of >=0.8 s where under 0.2 % of ${FREEZE_SCAN_WIDTH}-px greyscale pixels change between frames; spans given with --holds are listed as intended holds, not flagged. ${FREEZE_METHOD_NOTE}`,
     },
     silence: { ...silence, thresholdDb: -50 },
-    black: { runs: blackRuns },
+    black: { runs: picture.blackRuns },
+    frames: picture.frames,
     checkedNothing,
   };
 }
@@ -478,7 +485,14 @@ function formatFileReport(r) {
     ? `audio: silence checked nothing (${nothing("silence").reason}). ${checkedNothingNext("an audio stream")}`
     : `audio: longest silence after first sound ${f(r.silence.longestSilenceSec)}s (first sound at ${f(r.silence.firstSoundSec)}s)`);
   lines.push(`black picture: ${r.black.runs.length} run(s)${r.black.runs.map((x) => ` ${f(x.startSec, 2)}-${f(x.endSec, 2)}s`).join(",")}`);
+  lines.push(frameCountLine(r.frames));
   return lines.join("\n");
+}
+
+/** Decoded frames against the video stream length x fps, and how many neighbouring frames are byte-identical. */
+function frameCountLine({ decoded, expected, decodedMinusExpected, identicalNeighbours }) {
+  const vs = expected == null ? "no stream length to compare" : `expected ${expected} (stream length x fps), ${decodedMinusExpected >= 0 ? "+" : ""}${decodedMinusExpected}`;
+  return `frames: ${decoded} decoded, ${vs}; ${identicalNeighbours} identical neighbour pair(s) (a still or a repeated frame)`;
 }
 
 /**
@@ -536,11 +550,10 @@ export async function reviewReel({ dir, paths, mp4Flag }) {
     contactSheetPath = path.join(paths.outDir, "contact-sheet.png");
     fs.writeFileSync(contactSheetPath, sheet);
 
-    // Dead air is judged from what the page actually draws (seek() through
-    // the timeline, hash the native-resolution canvas), not a downscaled
-    // ffmpeg pixel diff — see scanDeadAirBySeek.
+    // Dead air is judged from what the page draws, by the same freeze method the --file check runs on the decode.
     const deadAirScan = await scanDeadAirBySeek(session.page, {
       duration,
+      fps,
       stepSec: DEAD_AIR_STEP_SEC,
       runSecMin: DEAD_AIR_RUN_SEC_MIN,
     });
@@ -564,7 +577,7 @@ export async function reviewReel({ dir, paths, mp4Flag }) {
       excludeEndHold(deadAirScan.runs, lastLineEnd, DEAD_AIR_RUN_SEC_MIN), declaredHolds, DEAD_AIR_RUN_SEC_MIN);
     const checkedNothing = [];
     if (shots.length === 0) checkedNothing.push({ check: "layout", reason: "the page declares no shots, so no frame was read for issues()" });
-    if (deadAirScan.times.length < 2) checkedNothing.push({ check: "deadAir", reason: "fewer than 2 samples" });
+    if (deadAirScan.frameCount < 2) checkedNothing.push({ check: "deadAir", reason: "fewer than 2 frames, so no frame pair to compare" });
     const hasAudio = (await probeStreamDurations(mp4Path)).audioSec != null;
     if (!hasAudio) checkedNothing.push({ check: "silence", reason: "the video has no audio stream" });
     else if (!(timings.lines && timings.lines.length)) checkedNothing.push({ check: "silence", reason: "timings.json has no lines, so there is no narration span to measure" });
@@ -619,6 +632,9 @@ export async function reviewReel({ dir, paths, mp4Flag }) {
         avDeltaMsMax: AV_DELTA_MS_THRESHOLD,
         deadAirRunSecMax: DEAD_AIR_RUN_SEC_MIN,
         deadAirStepSec: DEAD_AIR_STEP_SEC,
+        deadAirChangedShareMax: FREEZE_FRACTION,
+        deadAirRecheckSec: FREEZE_RECHECK_SEC,
+        deadAirScanWidth: FREEZE_SCAN_WIDTH,
         syncOffsetMsRange: [SYNC_OFFSET_MIN_MS, SYNC_OFFSET_MAX_MS],
       },
       checks: {
@@ -633,7 +649,8 @@ export async function reviewReel({ dir, paths, mp4Flag }) {
           runs: deadAirRuns,
           intendedHolds,
           endHoldSec: Math.max(0, videoDuration - lastLineEnd),
-          note: "measured from seek() output at native resolution: canvas pixel hash every 0.1s, a run of identical hashes >=0.8s is flagged; the end hold after the last line (meta.tailSec) is not counted",
+          recheckSpans: deadAirScan.recheckSpans,
+          note: `measured from seek() output, the canvas scaled to ${FREEZE_SCAN_WIDTH}-px greyscale: a run >=0.8s where under 0.2 % of pixels change between frames is flagged; the end hold after the last line (meta.tailSec) is not counted. ${FREEZE_METHOD_NOTE} Same method as review.mjs --file.`,
         },
         layout: {
           pass: nothingOf("layout") ? null : allIssues.length === 0,
@@ -693,17 +710,27 @@ async function measureVoiceClip(line, voiceDir, decode) {
     const file = path.join(voiceDir, name);
     const pcm = await decode(file, AUDIO_SAMPLE_RATE);
     if (!pcm.length) throw new Error("current clip has no samples");
-    const defects = findClipDefects(pcm, AUDIO_SAMPLE_RATE);
-    return { id: line.id, file, facts: describeDefects(defects), flag: waveformFlag(defects) };
+    const defects = withEndCut(findClipDefects(pcm, AUDIO_SAMPLE_RATE), { samples: pcm, sampleRate: AUDIO_SAMPLE_RATE }, await currentRawTake(line, voiceDir, decode));
+    const flag = waveformFlag(defects);
+    const result = { id: line.id, file, facts: describeDefects(defects), flag };
+    if (flag === "END_CUT" && !defects.endCut.rawCut) result.reinstall = true;
+    return result;
   } catch (error) {
     return { id: line.id, reason: error.message };
   }
 }
 
+/** The line's raw take (voice/raw/<id>.wav) when it is the one its clip was made from, for the END_CUT audit; else null. */
+async function currentRawTake(line, voiceDir, decode) {
+  if (rawTakeStatus(voiceDir, line) !== "current") return null;
+  const samples = await decode(rawTakePath(voiceDir, line.id), AUDIO_SAMPLE_RATE);
+  return samples.length ? { samples, sampleRate: AUDIO_SAMPLE_RATE } : null;
+}
+
 /** Missing measurements remain explicit and never fall back to saved clipFacts. */
 export function voiceClipFactLines({ lines, measured, unmeasured, unavailable = [] }) {
   const out = lines.map((l) => (l.flag
-    ? `WARN voice clip ${l.flag}, line "${l.id}": ${l.facts.join("; ")} (current clip, perceived-level evidence; re-make the line: voice.mjs <reel> --lines ${l.id})`
+    ? `WARN voice clip ${l.flag}, line "${l.id}": ${l.facts.join("; ")} (current clip, ${l.reinstall ? `compared with its raw take; install that take again: voice.mjs <reel> --use ${l.id}=<reel>/voice/raw/${l.id}.wav` : `perceived-level evidence; re-make the line: voice.mjs <reel> --lines ${l.id}`})`
     : `voice clip facts, line "${l.id}": ${l.facts.join("; ")} (current clip measurement)`));
   if (measured === 0) out.push("voice clip facts: CHECKED NOTHING; no current clips measured.");
   for (const clip of unavailable) out.push(`voice clip facts: CHECKED NOTHING, line "${clip.id}": ${clip.reason}`);

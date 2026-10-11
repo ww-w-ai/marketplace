@@ -71,7 +71,11 @@ retry) is sent alone.
 head and tail; summed over a film it becomes a voice gap of a second or more. Every synthesized
 line is therefore cut to its voiced span plus 0.05 s at the head and 0.3 s at the tail (voiced =
 above −50 dBFS in 10 ms windows, the level `review.mjs` uses; a pause inside the line is never
-touched), with a 20 ms fade-in and a 30 ms fade-out at the cuts. The untrimmed take is kept at
+touched), with a 20 ms fade-in and a 30 ms fade-out at the cuts. The end never comes before the
+last syllable's decay: the trim follows it down to 45 dB under the line's level (or 6 dB over the
+take's noise floor) and starts the fade-out at least 50 ms after that. The cut and both fades run in
+one filter chain on the cut clip's own clock (`atrim`, `asetpts`, `afade`), so the fade-out sits at
+the clip's real end. The untrimmed take is kept at
 `voice/raw/<id>.wav` and replaced only when a new take is installed; `timings.json` records its
 hash per line as `rawTake`, and `voice.mjs <reel> --raw-status` reports whether each raw file is
 still the take its clip was made from (stale or missing: do not rebuild that line from raw).
@@ -283,10 +287,17 @@ owner to listen to, with its timestamp. The reverse holds too: STT cannot separa
 so a clean check does not prove a name or a homophone was read the intended way
 (`references/readout-en.md`).
 
-- `--retry-flagged N` (default 0) — explicitly opts into re-synthesizing lines flagged `MISHEARD`/`SHORT`/`TAIL`/`HEAD`
+- **Sentence ends** — the same transcript is checked per sentence: each sentence's final syllable
+  must be found in it (character alignment). Misses are stored as `stt.endsMissing` and printed
+  under the STT table as endings to listen to. Advisory: STT often fills in a clipped syllable, so
+  the waveform `END_CUT` check is the gate.
+
+- `--retry-flagged N` (default 0) — explicitly opts into re-synthesizing lines flagged `MISHEARD`/`SHORT`/`TAIL`/`HEAD`/`END_CUT`
   after the check up to `N` more times, keeping whichever take has the lower error rate, or the one that clears a
   `HEAD`/`TAIL` flag at no worse an error rate; a take that adds such a flag is never kept. Skipped
-  for deterministic providers (`say`, `file`, `none`) — regenerating gives the same result.
+  for deterministic providers (`say`, `file`, `none`) — regenerating gives the same result. An
+  `END_CUT` line whose raw take is whole is first installed again from `voice/raw/<id>.wav` (no
+  synthesis, any provider) and kept when the flag clears; only a cut raw take is re-synthesized.
   Prefer selecting confirmed problem lines with `--lines` after inspecting the evidence.
 - `--no-stt` — skips the check entirely (drafts, or when no engine is set up).
 - `--stt-only [--lines id,id]` — re-runs just the STT check against a reel's existing
@@ -336,10 +347,23 @@ abrupt starts or ends show only on the waveform and its level, so those are judg
 transcript result clears them. After each line is made, `voice.mjs` reads the line's own audio, stores
 the result in `timings.json` (`clipFacts`). `review.mjs` remeasures current `voice/line-<id>.wav`
 files with the same perceptual edge rules. It ignores saved facts and reports missing or unreadable
-clips as unchecked. `HEAD` and `TAIL` are the gate:
+clips as unchecked. `HEAD`, `TAIL` and `END_CUT` are the gate:
 the line gets that `voiceFlag`, the run prints a `WARN` naming the line, and the fix is to re-make it
 (`--lines <id>`, or `--retry-flagged N`, which keeps a take only when it does not add the flag). The
 rest are facts to listen to.
+
+`END_CUT` is the sentence-end audit. It compares the installed clip with its raw take
+(`voice/raw/<id>.wav`, only when `--raw-status` would call it current). The clip's 10 ms envelope is
+aligned to the raw take's (tempo 0.7–1.6× and gain found by search, so any install path works). Every
+raw frame of the last syllable and its release that is within 45 dB of the line's level must still
+be in the clip: 20 dB lower than the aligned raw frame (±1 frame), or digital silence, counts as
+lost. 20 ms lost = `END_CUT`; the fix is to install the raw take again
+(`--use <id>=<reel>/voice/raw/<id>.wav`). A raw take that itself stops while speaking (its last
+40 ms of sound within 30 dB of the level) is `TAIL` when the clip check sees it, else `END_CUT`;
+either way it needs a new take. A raw take
+that an earlier install already cut cannot be told from a whole one: re-voice it.
+`TAIL` reads only the clip. A 30 ms fade at a cut hides it, and a fast natural release can trip it,
+so for a cut made by the install `END_CUT` is the evidence.
 
 The edge rule follows how loud the sound is to a listener, not its sample values: a last sample that
 is not zero, or a hiss tens of decibels under the voice, is not a defect. Levels are K-weighted
@@ -353,6 +377,7 @@ that masks it where the clip is placed under one. The constants are in `scripts/
 |---|---|
 | `HEAD` (gate) | sound is already audible in the first 15 ms (within 15 LU of the line's own loudness) that is not a soft rise: a cut start, or the end of the previous line carried over |
 | `TAIL` (gate) | the line ends while it still sounds: the last 20 ms is still within 5 LU of the line's own loudness (loud enough to be heard as a cut), at a level above what the bed under it masks |
+| `END_CUT` (gate) | the clip lost at least 20 ms of its last syllable or release that the raw take has, or the raw take itself stops while speaking (above) |
 | `DIP` | a 150 ms stretch 15 dB under the line's median level, with sound on both sides |
 | `PAUSE` | 0.35 s or more of silence inside the voiced span |
 
@@ -496,7 +521,7 @@ node scripts/voice.mjs <reel> --lines <lineId>[,<lineId>]
 - A re-made take is fitted to the old line's slot, in the order `dub.mjs` fits a language:
   1. trim the clip's edges to its voiced span;
   2. speed it up by at most 1.1× if it is longer than the slot (`atempo`, pitch kept);
-  3. keep at least 0.5 s of breath after it;
+  3. keep at least the minimum breath after it (`meta.minBreathMs`, default 500 ms);
   4. leave a voice-free gap of at most 1.0 s (a much shorter take is slowed by at most 0.95×,
      then reported);
   5. a take that still does not fit is **refused**: the old clip stays, the take is kept at
@@ -547,7 +572,10 @@ node scripts/voice.mjs <reel> --lines <lineId>[,<lineId>]
   with how far under it stays.
 - Head 0.4 s, gap `meta.gapMs` (default 700 ms) between lines, tail 0.4 s. A line's own
   `pauseAfterMs` replaces the gap after it: short when the next line continues the thought, long
-  at a scene change (`references/script-review.md`, "Narration that flows"). Changing pauses
+  at a scene change (`references/script-review.md`, "Narration that flows"). Every pause is
+  at least `meta.minBreathMs` (default 500 ms; a shorter pause is raised to it and reported).
+  `pauseAfterMs` is a designated silence: kept as written, never shrunk by a dub or retake fit.
+  A dub plan copies the base plan's `meta`, so dubs keep the same minimum breath. Changing pauses
   needs no re-synthesis: `voice.mjs --lines ""` re-lays the existing clips. A line's
   `pauseBeforeMs` adds silence before it, after the previous line's pause: the picture plays that
   long before the line starts (a first line: after the head). It is recorded as `pauseBeforeSec`
@@ -569,9 +597,11 @@ node scripts/voice.mjs <reel> --lines <lineId>[,<lineId>]
 - Without `SVA_STT_PYTHON` (or with `--no-stt`) word times fall back to an even spread by letters
   across the line (`wordsMeasured: 0`), which has been up to ~0.4 s off the sound and misses
   pauses. Word ends inside continuous speech are less exact than word starts; land beats on starts.
-  After a pause inside a line, a caption word starts where its sound begins, not where the
-  speech-to-text pass put it (`voice.mjs` snaps it to the audio after each line is made;
-  `--stt-only` does the same).
+  A line's first word, and a word after a pause inside a line, starts where its sound begins,
+  not where the speech-to-text pass put it: a start recorded inside the silence moves later, and a
+  start recorded after the sound already began moves back to where that sound starts (at most
+  0.6 s, never into the previous word). `voice.mjs` snaps it to the audio after each line is made;
+  `--stt-only` does the same.
 - **Do not cut a line's audio at a word end.** A word end is the least exact time, and a cut there
   clips the first sound of the next word. To split speech after a word, synthesize the two parts
   as separate lines and put the pause between them (`pauseAfterMs`, or `--insert-pause` on a
