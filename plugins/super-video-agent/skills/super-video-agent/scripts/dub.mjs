@@ -81,9 +81,12 @@ const HELP = `usage: dub.mjs <reel-dir> --lang <code> [--min-gap <sec>] [--max-s
 --init-plan: writes <reel-dir>/dub/<code>/plan.json from the base plan.json and
 exits (no render, no voice). It keeps each line's id, pauseBeforeMs,
 pauseAfterMs, lead and rate, sets meta.lang to <code>, and leaves each line's
-text empty, meta.pronounce out, meta.overlay strings empty and the speaker
-fields of meta.voice (voiceId, refAudio, refText, refTokens) out: the
-language's own copy and voice are the user's to write. --copy keeps the base
+text empty, meta.pronounce out, meta.overlay strings left out (validate-plan
+on dub/<code> lists the keys the page reads; a film that reads them through
+Reel.overlayText gets its fallback and an overlay-text-missing issue until
+each is added) and the speaker fields of meta.voice (voiceId, refAudio,
+refText, refTokens) out: the language's own copy and voice are the user's
+to write. --copy keeps the base
 text, say, notes, pronounce, overlay and voice as they are (a dub in the base
 language, or a start to translate in place). An existing dub plan.json is
 never overwritten: the run stops.
@@ -184,9 +187,12 @@ combine with --min-gap.
 
 --insert-time <sec> --seconds <n>: a time insert (e.g. a title-card hold) at film
 second <sec>. Moves every dub/<code>/timings.placed.json (lines, words, length) and
-every .srt under out/ and dub/<code>/ later by <n> at once, then prints each
-language's old -> new length and whether all languages are the same length. A line
-or cue that straddles <sec> stops the run before anything is written. It does not
+every .srt under out/ and dub/<code>/ (subfolders too; hidden folders such as .backup/
+and node_modules are skipped) later by <n> at once, then prints each language's
+old -> new length, whether all languages are the same length, and each SRT file it
+moved. A line or cue starting within 1 ms of <sec> counts as starting at it (moves);
+one ending within 1 ms of <sec> counts as ending before it (stays). A line or cue
+that straddles <sec> stops the run before anything is written. It does not
 touch pictures, beds or audio: re-render the picture with the hold, then run dub
 again per language. Use it before upload only — tracks already attached to a
 published video would no longer match.
@@ -827,9 +833,20 @@ export async function assembleSpans({ plan, pictureMp4, gridPictureMp4, captions
 
 const SRT_NAME = /\.srt$/i;
 
+/** Every .srt under `dir`, subfolders too, sorted. Hidden folders (.backup/ included), node_modules and symlinked folders are not entered. */
 function srtFilesIn(dir) {
   if (!fs.existsSync(dir)) return [];
-  return fs.readdirSync(dir).filter((f) => SRT_NAME.test(f)).map((f) => path.join(dir, f));
+  const found = [];
+  const walk = (d) => {
+    for (const entry of fs.readdirSync(d, { withFileTypes: true })) {
+      const full = path.join(d, entry.name);
+      if (entry.isDirectory()) {
+        if (!entry.name.startsWith(".") && entry.name !== "node_modules") walk(full);
+      } else if (entry.isFile() && SRT_NAME.test(entry.name)) found.push(full);
+    }
+  };
+  walk(dir);
+  return found.sort();
 }
 
 /** Which language an .srt belongs to: its dub/<code>/ folder, else a "-<code>.srt" / ".<code>.srt" file name. */
@@ -864,14 +881,17 @@ export function insertTime({ dir, at, seconds }) {
     return { lang, before: before.duration, after: shifted.duration, lines: shifted.lines.filter((l, i) => l !== before.lines[i]).length, srt: 0 };
   });
   const unassignedSrt = [];
-  const srtFiles = [...srtFilesIn(paths.outDir), ...codes.flatMap((c) => srtFilesIn(path.join(dubDir, c)))];
+  const languageSrt = [];
+  const srtFiles = [...new Set([...srtFilesIn(paths.outDir), ...codes.flatMap((c) => srtFilesIn(path.join(dubDir, c)))].map((f) => path.resolve(f)))];
   for (const file of srtFiles) {
     let result;
     try { result = shiftSrt(fs.readFileSync(file, "utf8"), at, seconds); } catch (e) { throw new Error(`${file}: ${e.message}`); }
     writes.push([file, result.text]);
     const lang = srtLang(file, dubDir, codes);
-    if (lang) rows.find((r) => r.lang === lang).srt += result.shifted;
-    else unassignedSrt.push(`${file} (${result.shifted} cues moved)`);
+    if (lang) {
+      rows.find((r) => r.lang === lang).srt += result.shifted;
+      languageSrt.push(`${file} (${lang}, ${result.shifted} cues moved)`);
+    } else unassignedSrt.push(`${file} (${result.shifted} cues moved)`);
   }
   for (const [file, text] of writes) {
     const tmp = uniqueTempPath(path.dirname(file), path.basename(file), ".tmp");
@@ -879,7 +899,8 @@ export function insertTime({ dir, at, seconds }) {
     fs.renameSync(tmp, file);
   }
   const report = formatTimeInsertReport(rows);
-  const extra = unassignedSrt.length ? `SRT files not tied to a language:\n${unassignedSrt.map((s) => `  ${s}`).join("\n")}\n` : "";
+  const listed = (title, items) => (items.length ? `${title}:\n${items.map((s) => `  ${s}`).join("\n")}\n` : "");
+  const extra = listed("SRT files moved", languageSrt) + listed("SRT files not tied to a language", unassignedSrt);
   return { text: report.text + extra, equal: report.equal, rows, unassignedSrt };
 }
 
@@ -925,7 +946,7 @@ function frameFileName(index) {
  * author's job, not dub.mjs's.
  * @returns {Promise<{ok:boolean, note?:string, fatal?:string, plan?:object}>} fatal stops the step; note is a fact to print
  */
-async function tryOwnCaptionLayer({ reelDir, lang, baseLang, pictureSource, fps, framesDir, planFor, lines, keepBasePictureText, contrast }) {
+export async function tryOwnCaptionLayer({ reelDir, lang, baseLang, pictureSource, fps, framesDir, planFor, lines, keepBasePictureText, contrast }) {
   const server = await serveDir(reelDir);
   let session;
   let declared = null; // stays null when the page's spans were never read
@@ -949,9 +970,10 @@ async function tryOwnCaptionLayer({ reelDir, lang, baseLang, pictureSource, fps,
     const records = contrast ? await captionRecordsAtSamples({ page: session.page, lines, fps }) : null;
     return { ok: true, plan, note: spanNote, records };
   } catch (e) {
-    const failed = `reel.html's own caption layer failed to load (${e.message.split("\n")[0]}) — fell back to the default look.`;
+    // A final drawn with the default look instead of the film's own layer is a different film: stop.
+    const failed = `reel.html's own caption layer failed (${e.message.split("\n")[0]}) — no final written. Fix the page error, then run dub.mjs --lang ${lang} again.`;
     const spanNote = sceneSpanNote({ spans: declared, lang, baseLang, pictureSource, keepBasePictureText });
-    return { ok: false, note: spanNote ? `${failed} ${spanNote}` : failed };
+    return { ok: false, fatal: spanNote ? `${failed} ${spanNote}` : failed };
   } finally {
     if (session) await session.close();
     await server.close();

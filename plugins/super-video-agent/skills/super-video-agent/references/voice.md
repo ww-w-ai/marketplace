@@ -309,8 +309,18 @@ so a clean check does not prove a name or a homophone was read the intended way
   `voice/stt-pending.json` lists the lines not yet checked. A killed run, started again with
   the same command, resumes with those lines only; delete the file to check every line. A full
   voice run (no `--lines`) deletes it.
-- Missing Python or a missing model never fails the voice step — it prints `STT check skipped:
-  <reason>` and continues.
+- With nothing configured (neither `SVA_STT_PYTHON` nor `SVA_STT_ENGINE` set), a missing Python
+  or a missing model does not fail the voice step — it prints `STT check skipped: <reason>` and
+  continues. A model that is not downloaded is skipped the same way in every case.
+- When STT is configured (`SVA_STT_PYTHON` or `SVA_STT_ENGINE` set) but cannot run — no Python,
+  a Python that cannot start or has no `mlx_whisper`, engine `groq` without `GROQ_API_KEY`, an
+  unknown engine — the voice step prints
+  `STT check FAILED: <reason>` to stderr and exits 1 after writing the audio and `timings.json`.
+  `--stt-only` exits 1 the same way. The reason names the fixes: point `SVA_STT_PYTHON` at a
+  Python with mlx-whisper, use `SVA_STT_ENGINE=groq`, or turn the check off with `--no-stt`.
+- A decode that fails with `Bad file descriptor` (ffmpeg exit 247) passes on a plain rerun: the
+  STT run and every ffmpeg run that only reads (output to a pipe) retry up to 2 more times and
+  log each retry. A run that writes a file is never retried.
 
 **Speech-to-text engines** (facts; the tool does not rank them).
 
@@ -322,7 +332,7 @@ so a clean check does not prove a name or a homophone was read the intended way
 | `SVA_STT_MODEL_RECHECK` | the second-pass model (default `turbo`), run only on lines whose first transcript is doubtful |
 | `SVA_STT_DOUBT_CER` | the error rate against the plan text above which a line is doubtful (default 0.15) |
 | `SVA_STT_GROQ_MODEL` | the hosted model (default `whisper-large-v3-turbo`) |
-| `GROQ_API_KEY` | the key for engine `groq`; read from the environment and never printed; no key = the check is skipped |
+| `GROQ_API_KEY` | the key for engine `groq`; read from the environment and never printed; no key = the check fails (`STT check FAILED`, exit 1) |
 
 The mlx engine needs the `mlx-whisper` package in the Python that `SVA_STT_PYTHON` names
 (Apple silicon macOS). One route: `python3 -m venv <dir>`, then `<dir>/bin/pip install mlx-whisper`,
@@ -403,14 +413,16 @@ SKILL.md's flow asks whether to compare tones before building a film; if not cho
 unattended, one take.
 
 Compare → pick → restore. Each take is kept as `voice/takes/<id>-<k>.wav` with its STT CER and
-duration, printed as a table. `--takes` only makes candidates: it never changes an installed
+duration, printed as a table. A later `--takes` round numbers its takes after the highest one
+already on disk for that line, so earlier rounds are kept and `--pick <id>=<k>` counts across
+rounds. `--takes` only makes candidates: it never changes an installed
 `voice/line-<id>.wav`, timings.json or narration.wav. Install one with
 `--pick <id>=<k>[,<id>=<k>]` — no re-synthesis, just the copy + rebuild as `--lines` does. Picking
 a take from a tone comparison also writes that mark to `meta.voice.delivery`, so every later line
 is made in it. The clip a pick (or `--use`) replaces is kept first as
 `voice/takes/<id>/installed-<timestamp>.wav` and its path is printed; restore it with
 `--use <id>=<that file>`. A line with no installed clip yet (first synthesis through `--takes`)
-gets take 1 installed so the reel is complete.
+gets the first take of that run installed so the reel is complete.
 
 Hosted voices can read the same text at quite different lengths from take to take. When a line
 has to fit a slot (a dub line, a fixed picture beat), make a few takes and let the tool pick:
@@ -429,7 +441,10 @@ takes already in `voice/takes/` for the `--lines` ids (default: every line in
 
 A line made somewhere else — tone variants in a scratch reel, another provider, the other version
 of an A/B, a recording — goes in with `--use <id>=<wav>[,<id>=<wav>]` (add `--retime` when its
-length differs). The file is taken as finished: the film's speed is not applied again. Takes in
+length differs). The file is taken as finished: the film's speed is not applied again. The one
+exception is the line's own raw take (same bytes as the `voice/raw/<id>.wav` that timings.json
+records for the line, wherever the copy lives): it is trimmed, gets the film's speed, records its
+`rawTake`, and keeps its measured word times when no STT runs. Takes in
 `voice/takes/` are raw and get the speed on `--pick`; a finished `voice/line-<id>.wav` already has
 it, so copying one into `takes/` and picking it speeds it up twice.
 
@@ -559,7 +574,12 @@ node scripts/voice.mjs <reel> --lines <lineId>[,<lineId>]
   `--lines`, `--pick` and `--use` alike.
 - A finished take that needs a breath inside it gets one without re-synthesis:
   `--insert-pause <id>@<word-index>=<ms>` inserts that much silence at the quietest 10 ms
-  between that word and the next, and shifts the later word times by the same amount.
+  of the measured gap between that word and the next (a gap under 20 ms is searched as 20 ms
+  around the boundary), fades 4 ms into and out of it, and shifts the later word times by the
+  same amount. The pause goes in only when that 10 ms and the 5 ms on each side are -40 dB or
+  quieter against the line's loudest 10 ms — zeros spliced into voiced audio click. Otherwise
+  the pause is refused: the reason is printed, that clip stays unchanged, the other pauses still
+  apply, and the run exits 1. Pick another word gap, or re-voice the line with the pause in it.
 - Keep a copy of `voice/` before a larger redo, so the user can compare and go back.
 
 ## Timing model
