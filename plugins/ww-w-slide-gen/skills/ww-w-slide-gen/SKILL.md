@@ -98,12 +98,29 @@ Then open `<deck root>/html/deck.html` in a browser and step through every slide
 
 **Gate:** the build exits 0 and every slide was looked at after the last rebuild.
 
-### 7. Report
+### 7. Export a final PDF
+
+When the user requests a PDF, use this workflow.
+
+Keep the finalized HTML deck as the editable source. The approved PDF workflow captures the slides in screen media and assembles those captures into one PDF page per slide. Text may not be selectable in this raster PDF; that is acceptable unless the user asks for selectable text or vector output.
+
+Preserve any existing interim PDF unless the user requests replacement. Save a corrected export under a versioned filename.
+
+1. Use the browser route and permission rules approved for the active host. Show each finalized slide in screen mode. Wait for fonts, HTML/SVG images, and slide transitions to finish loading and settle.
+2. Capture each slide at high resolution using the exact slide bounds. Exclude navigation, counters, letterboxing, and all surrounding browser UI. Do not capture a moving transition or hidden sprite content.
+3. Assemble the captures in deck order, one capture per PDF page. Preserve the full artwork and effects visible in the browser. Keep the native editable HTML deck as the source.
+4. Inspect the actual PDF: verify page count, order, and dimensions; render every page and review a contact sheet, then compare affected pages against the screen-rendered slides. Check for clipping, black bars, missing images, hidden sprite spill, and visual differences. A matching page count or loaded images alone does not pass this gate.
+
+Use native print or text/vector PDF only when the user explicitly needs selectable text or vector output, then visually QA every page. Native print can change `clipPath`s, gradients, shadows, and backdrop blur, so it is not the default final export.
+
+**Gate:** the delivered PDF passes the full-page and screen comparison checks, and the editable HTML source remains available.
+
+### 8. Report
 
 ```
 Deck:      <deck root>/html/deck.html
 Slides:    N  (list: NN · claim)
-Keys:      E edit in place · F fullscreen · P print the whole deck to PDF · ? all shortcuts
+Keys:      E edit in place · F fullscreen · P browser print shortcut · ? all shortcuts
 Unverified: <numbers or quotes still marked unverified, or "none">
 Not done:  <anything skipped, e.g. images not generated>
 ```
