@@ -7,7 +7,9 @@ import { parseArgs, printHelpAndExit, fail, abs } from "./lib/cli.mjs";
 import { reelPaths, writeJson } from "./lib/reeldir.mjs";
 import { serveDir } from "./lib/server.mjs";
 import { openReel, seekTo, stubSeconds } from "./lib/browser.mjs";
+import { lastFilmFrame } from "./lib/frame-count.mjs";
 import { checkHookResult, overlapSpans, formatSpans } from "./lib/overlap.mjs";
+import { isMain } from "./lib/is-main.mjs";
 
 const HELP = `usage: overlap.mjs <reel-dir> [--step <frames>] [--out <json>] [--stub <sec>]
 
@@ -64,7 +66,7 @@ export async function main(argv) {
 }
 
 async function sample(page, fps, duration, step) {
-  const last = Math.max(0, Math.ceil(duration * fps - 1e-9) - 1);
+  const last = lastFilmFrame(duration, fps);
   const samples = [];
   for (let frame = 0; frame <= last; frame += step) {
     const t = frame / fps;
@@ -78,6 +80,6 @@ async function sample(page, fps, duration, step) {
   return samples;
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (isMain(import.meta.url)) {
   main(process.argv.slice(2));
 }

@@ -14,6 +14,7 @@ import {
 import {
   acquireSlot, readSlot, readTickets, releaseDeadSlot, waitingOrder, killGroup, pidAlive,
   defaultLockDir, assertSafeLockDir, safePgid, trustedOwner, procStartTime, procState,
+  currentUid,
 } from "../scripts/runner/lock.mjs";
 import { listEntries, removeEntries } from "../scripts/runner/queue.mjs";
 import { rowOfFile, aggregate, formatReport, reportFor } from "../scripts/runner/cost-report.mjs";
@@ -186,7 +187,7 @@ test("a dead owner's slot is released by the next process, and its leftover chil
   const leftover = track(spawn(process.execPath, ["-e", "setInterval(()=>{},1000)"], { detached: true, stdio: "ignore" }));
   const dead = deadPid();
   fs.mkdirSync(path.join(dir, "slot"), { recursive: true });
-  fs.writeFileSync(path.join(dir, "slot", "owner.json"), JSON.stringify({ pid: dead, uid: process.getuid(), label: "gone", since: Date.now(), childPgid: leftover.pid, childStart: procStartTime(leftover.pid) }));
+  fs.writeFileSync(path.join(dir, "slot", "owner.json"), JSON.stringify({ pid: dead, uid: currentUid(), label: "gone", since: Date.now(), childPgid: leftover.pid, childStart: procStartTime(leftover.pid) }));
   assert.equal(readSlot(dir).ownerAlive, false);
   const h = await acquireSlot(fastOpts(dir, { label: "next" }));
   assert.equal(readSlot(dir).owner.label, "next");
@@ -207,7 +208,7 @@ test("a zombie (killed, not reaped by its parent) reads as dead, and a bounded w
   assert.equal(pidAlive(zombie, procStartTime(zombie)), false);
   assert.equal(pidAlive(zombie), false);
   fs.mkdirSync(path.join(dir, "slot"));
-  fs.writeFileSync(path.join(dir, "slot", "owner.json"), JSON.stringify({ pid: zombie, startTime: procStartTime(zombie), uid: process.getuid(), label: "zombie", since: Date.now() }));
+  fs.writeFileSync(path.join(dir, "slot", "owner.json"), JSON.stringify({ pid: zombie, startTime: procStartTime(zombie), uid: currentUid(), label: "zombie", since: Date.now() }));
   assert.equal(readSlot(dir).ownerAlive, false);
   const h = await acquireSlot(fastOpts(dir, { label: "next" }));
   assert.equal(readSlot(dir).owner.label, "next");
@@ -357,7 +358,7 @@ test("killGroup refuses 0, 1, negatives and non-integers (checked with signal 0,
 });
 
 test("an owner record of another uid, or with no uid, never steers a kill", async () => {
-  for (const uid of [process.getuid() + 1, undefined]) {
+  for (const uid of [currentUid() + 1, undefined]) {
     const dir = tmp();
     const bystander = track(spawn(process.execPath, ["-e", "setInterval(()=>{},1000)"], { detached: true, stdio: "ignore" }));
     fs.mkdirSync(path.join(dir, "slot"));
@@ -432,7 +433,7 @@ test("a dead owner's slot is a removable entry and its child group goes with it"
   const dir = tmp();
   const leftover = track(spawn(process.execPath, ["-e", "setInterval(()=>{},1000)"], { detached: true, stdio: "ignore" }));
   fs.mkdirSync(path.join(dir, "slot"), { recursive: true });
-  fs.writeFileSync(path.join(dir, "slot", "owner.json"), JSON.stringify({ pid: deadPid(), uid: process.getuid(), label: "gone", since: Date.now() - 5000, childPgid: leftover.pid, childStart: procStartTime(leftover.pid) }));
+  fs.writeFileSync(path.join(dir, "slot", "owner.json"), JSON.stringify({ pid: deadPid(), uid: currentUid(), label: "gone", since: Date.now() - 5000, childPgid: leftover.pid, childStart: procStartTime(leftover.pid) }));
   const slot =listEntries({ dir }).find((e) => e.kind === "slot");
   assert.deepEqual(slot.reasons, ["owner-dead"]);
   removeEntries({ dir, ids: ["slot"] });
@@ -564,7 +565,7 @@ test("runner: a missing done-file resumes the session by id, then the cost repor
   const r = await runPlan(planOf(f, [sessionStage(f, "voice", 2)]), { print: (s) => printed.push(s) });
   assert.equal(r.ok, true);
   assert.equal(f.calls("voice").resumes, 1);
-  assert.ok(fs.existsSync(path.join(f.dir, "results", "voice.0.json")) && fs.existsSync(path.join(f.dir, "results", "voice.1.json")));
+  assert.deepEqual(fs.readdirSync(path.join(f.dir, "results")).map((n) => n.replace(/\.r[0-9a-z]+\./, ".")).sort(), ["voice.0.json", "voice.1.json"]);
   assert.match(printed.join(""), /voice \| 2 \| 1\.00/);
   assert.match(printed.join(""), /total \| 2 \| 1\.00/);
   const status = fs.readFileSync(path.join(f.dir, "status.txt"), "utf8");

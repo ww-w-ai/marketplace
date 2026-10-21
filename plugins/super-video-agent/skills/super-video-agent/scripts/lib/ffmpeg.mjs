@@ -333,11 +333,22 @@ function hardwareArgs(name, width, height) {
  * @param {{crf?: number, preset?: string, width?: number, height?: number, encoder?: string}} opts encoder defaults to chooseVideoEncoder().name
  */
 export function videoEncodeArgs({ crf, preset, width, height, encoder = chooseVideoEncoder().name }) {
-  if (encoder === SW_ENCODER) {
+  if (encoder === SW_ENCODER || belowHardwareMinimum(encoder, width, height)) {
     return ["-c:v", SW_ENCODER, ...(crf === undefined ? [] : ["-crf", String(crf)]), ...(preset ? ["-preset", preset] : []), "-pix_fmt", "yuv420p"];
   }
   if (!KNOWN_ENCODERS.has(encoder)) throw new Error(`unknown video encoder ${encoder}`);
   return hardwareArgs(encoder, width, height);
+}
+
+// Smallest frame NVENC opens (measured on an RTX 3050, driver 617): below it the encoder refuses
+// with "Frame dimensions are less than the minimum supported value".
+const NVENC_MIN = { hevc: [129, 33], h264: [145, 49] };
+
+/** Whether width x height is too small for this hardware encoder, so the encode goes to libx264. */
+export function belowHardwareMinimum(encoder, width, height) {
+  if (!encoder.endsWith("_nvenc") || !width || !height) return false;
+  const [w, h] = NVENC_MIN[codecOf(encoder)] || [0, 0];
+  return width < w || height < h;
 }
 
 /**
@@ -387,8 +398,18 @@ function ffmpegTestEncode(name) {
     { encoding: "utf8", timeout: PROBE_TIMEOUT_MS }
   );
   if (r.status === 0) return null;
-  const lines = String(r.stderr || r.error?.message || `exit ${r.status}`).trim().split("\n");
-  return lines[lines.length - 1];
+  return encodeFailureReason(String(r.stderr || r.error?.message || `exit ${r.status}`));
+}
+
+/**
+ * The line of a failed encode that says why. ffmpeg's last line is usually the generic
+ * "Nothing was written into output file"; the encoder's own first complaint (an old driver,
+ * a missing device) comes earlier, so prefer the first line the encoder itself printed.
+ */
+export function encodeFailureReason(stderr) {
+  const lines = stderr.trim().split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  const own = lines.find((l) => /^\[(h264|hevc)_\w+ @/.test(l));
+  return (own || lines[lines.length - 1] || "").replace(/^\[[^\]]*\]\s*/, "");
 }
 
 let chosenEncoder = null;
@@ -416,26 +437,19 @@ export async function probeEncodeSource(file) {
 }
 
 /**
- * Spawn a long-lived ffmpeg process that reads PNG frames from stdin
- * (image2pipe) and encodes them with videoEncodeArgs. Caller writes frames
- * then ends stdin. `width`/`height` are the output size (the hardware bitrate);
- * `encoder` defaults to SVA_VENC's choice.
+ * Spawn a long-lived ffmpeg process that reads frames from stdin and encodes
+ * them with videoEncodeArgs. Caller writes frames then ends stdin. Frames are
+ * PNG files (image2pipe), or with `rgbaSize` {width, height} raw unpremultiplied
+ * RGBA frames of that size (rawvideo). `width`/`height` are the output size
+ * (the hardware bitrate); `encoder` defaults to SVA_VENC's choice.
  * Returns {proc, done} where done resolves when the process exits 0.
  */
-export function spawnImagePipeEncoder({ fps, outPath, crf = 18, preset = "medium", scaleFilter, width, height, encoder }) {
+export function spawnImagePipeEncoder({ fps, outPath, crf = 18, preset = "medium", scaleFilter, width, height, encoder, rgbaSize = null }) {
   const gop = keyframeInterval(fps);
-  const args = [
-    "-hide_banner",
-    "-loglevel",
-    "error",
-    "-y",
-    "-f",
-    "image2pipe",
-    "-framerate",
-    String(fps),
-    "-i",
-    "-",
-  ];
+  const input = rgbaSize
+    ? ["-f", "rawvideo", "-pix_fmt", "rgba", "-s", `${rgbaSize.width}x${rgbaSize.height}`]
+    : ["-f", "image2pipe"];
+  const args = ["-hide_banner", "-loglevel", "error", "-y", ...input, "-framerate", String(fps), "-i", "-"];
   if (scaleFilter) args.push("-vf", scaleFilter);
   args.push(
     ...videoEncodeArgs({ crf, preset, width, height, encoder }),
@@ -450,7 +464,7 @@ export function spawnImagePipeEncoder({ fps, outPath, crf = 18, preset = "medium
     proc.on("error", (e) => reject(new Error(`ffmpeg failed to start: ${e.message}`)));
     proc.on("close", (code) => {
       if (code === 0) resolve();
-      else reject(new Error(`ffmpeg image2pipe exited ${code}\n${stderr}`));
+      else reject(new Error(`ffmpeg ${rgbaSize ? "rawvideo" : "image2pipe"} exited ${code}\n${stderr}`));
     });
   });
   return { proc, done };
