@@ -30,6 +30,8 @@ ldraw-order-check.mjs <build.json | model.mpd> --lib <parts-folder> --cameras <c
 ```
 
 - It must end **PASS**: 0 SUPPORT, 0 CROSSING, 0 ORDER, 0 DIRECTION, 0 HIDDEN, 0 NO-CAMERA, 0 UNPLACED.
+  STABILITY and FIGURE (below) are listed as advisories; `--strict` makes them fail too, for a
+  project that requires them.
   Exit 1 lists each violation with its landing index. Review until every count is 0 before rendering;
   a known non-zero count is not "small enough" (owner: "0% 가 될 때까지 검토하고 맞춰").
 - SUPPORT: at its landing every part (or sub-assembly) joins a part already placed, or the table:
@@ -70,6 +72,28 @@ ldraw-order-check.mjs <build.json | model.mpd> --lib <parts-folder> --cameras <c
   exception: a part flagged internal by design (`--internal <regex>`) that lands in a shot marked
   `"opening": true` (seen through an opening) is listed as excepted, still counted. `--structure-only`
   skips VISIBILITY for a planning run; its stamp opens no render or verify gate.
+  STABILITY (EV-40; owner 2026-10-28: "다리가 한쪽에만 있는데 불안정하게 허공에 꽂히는 경우"): a part that
+  joins by one stud at its far end passes SUPPORT and still looks like it hangs in the air. At its
+  landing the part's centre of mass (its box, or a sub-assembly's boxes by volume) must lie over what
+  holds it against gravity: the seated near-vertical studs under it (each standing for its stud cell,
+  ±10 LDU), the part it hangs under when it arrives from below, or the table; margin min(4 LDU, 25 % of
+  the holding width). A bridge lands only when both ends stand. A landing that would rest once the
+  parts under it are placed is a fault (land it after them; listed, a FAIL with `--strict`); one that overhangs even in the finished model
+  is a designed cantilever: listed (`cantilevers` in the report). List those in the film
+  report for the owner, or give each a support from below with the same look. Parts held only
+  sideways (side studs, axles, hinges, clips) are judged by their joint, not here.
+  FIGURE (EV-41; owner 2026-10-28: "사람 몸보다 손이 먼저 생기는게 어딨니 ㅋ 사람은 그냥 하체가 한번에,
+  상체가 한번에, 얼굴이 한번에"): a minifig lands as three whole placements, bottom to top: hips + legs;
+  torso + arms + hands, with what the hands hold; head + hair, hat or helmet. One click each. A landing
+  holding an arm or hand without its torso, a leg without the hips, or hair without the head is listed
+  (a FAIL with `--strict`)
+  (checked on `--ignore` landings too, not on the `--ignore-tail`). `figureUnits(titles)` in the lib
+  turns a build order's runs into `--groups` units (`{k0, k1, kind: "figure", rigid: true}`); a seated
+  figure with no legs has two.
+  PRECISION (EV-42, listed): a placement whose rotation is no longer a rotation (written with three
+  decimals: 0.707 for cos 45°) puts tilted parts a fraction of an LDU inside their neighbours, and the
+  sweep reads that as CROSSING. Any generator writes matrices and positions with 6 decimals; the report
+  lists placements off by more than 2e-5.
 - It writes `order-check.json` beside the order file (the hashes of the files it checked).
   `render.mjs` and `verify.mjs` refuse a reel whose `data/build.json` (or `data/<dir>/build.json`) has no
   current passing stamp. `--skip-order-check "<reason>"` gets past it and appends the reason to
@@ -86,8 +110,10 @@ ldraw-order-check.mjs <build.json | model.mpd> --lib <parts-folder> --cameras <c
   arrival from here, never a fixed "from above"), `visibleOf(candidate, camera)`,
   `visibleCandidates(candidates, camera)` and `proposeCamera(candidate, camera)` (the smallest orbit
   turn that shows it), `swingCheck(members, {from, swingFrom})` / `hingeOf` / `restAngle` for a hinged
-  half, then `place`. A planner picks only supported, clear, visible candidates with a
-  joint-matching arrival. When none is visible, turn the camera (`proposeCamera`) or move that area
+  half, `stabilityOf(candidate, {from})` (defer a part until it rests; the order of a slow build is
+  re-sequenced so each part waits until it is stable, with everything that depends on it), then
+  `place`. A planner picks only supported, clear, stable, visible candidates with a
+  joint-matching arrival, and folds minifigs into their three units (`figureUnits`) before the gate. When none is visible, turn the camera (`proposeCamera`) or move that area
   into a sub-assembly shot.
 - Options, each recorded in the stamp: `--ignore-tail <n>` (assembled minifigs added last),
   `--ignore <regex>` (landings not checked), `--loose <regex>` (odd parts held by any box contact;
@@ -119,6 +145,16 @@ How to fix a failing order:
 - A part pushed sideways must have a clear path: not across studs it would drag through, not
   through a neighbour in the same course. Press it down from above, or let it come in last on that
   side.
+- A hinged limb (an arm on a friction hinge or a ball joint): the moving half seats on its base's
+  pins from the side, never along a stud axis, so the moving half with everything built on it is one
+  unit (a `--groups` range): built aside (its first part free), then seated in one landing, trying
+  arrivals from several sides until its path clears (EV-46, Gwanghwamun statues). A ball-joint
+  landing has no stud axis: try arrivals around the ball, never only "from above" through the limb
+  before it.
+- The skin of an angled limb (stud-joined parts turned off the grid) may slide along a neighbour face
+  to face; arrive along its own stud axis leaned up to 10 degrees away from that neighbour (inside the
+  DIRECTION tolerance). If such parts still cross, check PRECISION first: rounded matrices are the
+  usual cause.
 
 ### The order file
 
@@ -328,6 +364,13 @@ the clip; "레고 손에 꽂을 수 있는 부분과 아닌 부분이 있는데 
   angle and offset; bars come from the part's radius-4 cylinder primitives (holes marked
   `BFC INVERTNEXT` and studs are not bars). Run it after every model change that adds or moves a
   minifig, and before any render.
+- A correct grip is not yet a correct pose (EV-44; Gwanghwamun: a tourist's camera passed the grip
+  test held upside down). Try both bar ends and every turn about the grip, and keep the item's own up
+  pointing up and its front where the figure looks. The check lists a held item whose own up points
+  more than 120 degrees from up as a CHECK line to look at, not a failure (a sword held point-down may
+  be meant).
+- A minifig is assembled as three whole placements (FIGURE in the gate above): never hands before the
+  body.
 
 ### Sculpted subjects: statues, figures, organic shapes
 
