@@ -70,6 +70,8 @@ codex plugin marketplace add ww-w-ai/marketplace
 codex plugin add better-rea@ww-w-ai
 ```
 
+(Or add the repo directly: `codex plugin marketplace add ww-w-ai/better-rea` then `codex plugin add better-rea@better-rea`.)
+
 Repository: <https://github.com/ww-w-ai/better-rea>
 
 ## Usage

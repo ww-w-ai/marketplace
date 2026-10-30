@@ -70,6 +70,8 @@ codex plugin marketplace add ww-w-ai/marketplace
 codex plugin add better-rea@ww-w-ai
 ```
 
+(또는 저장소를 직접: `codex plugin marketplace add ww-w-ai/better-rea` 그다음 `codex plugin add better-rea@better-rea`.)
+
 저장소: <https://github.com/ww-w-ai/better-rea>
 
 ## 사용
