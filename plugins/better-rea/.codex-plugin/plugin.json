@@ -1,0 +1,35 @@
+{
+  "name": "better-rea",
+  "version": "0.1.0",
+  "description": "Runs REA inside an evidence-and-limits loop: a claim ledger a validator checks, a required report format, and a methods reference drawn from reverse-engineering literature. An agent's findings about a compiled app get confirmed or left unknown, not guessed.",
+  "author": {
+    "name": "ww-w-ai"
+  },
+  "repository": "https://github.com/ww-w-ai/better-rea",
+  "license": "MIT",
+  "keywords": [
+    "reverse-engineering",
+    "rea",
+    "ghidra",
+    "evidence",
+    "agent-skill",
+    "codex"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "better-rea",
+    "shortDescription": "Draw REA out to its limit — checked findings, not guesses.",
+    "longDescription": "Takes REA (Reverse Engineer Anything) and runs it inside an evidence-and-limits loop: every conclusion is a claim with evidence and a limit in a ledger a validator checks, deliverables follow a required report format, and a methods reference distilled from open reverse-engineering literature gives the agent possibilities to confirm or rule out. Findings about a compiled app get confirmed or left unknown, not guessed.",
+    "developerName": "ww-w-ai",
+    "category": "Productivity",
+    "capabilities": [
+      "Interactive",
+      "Write"
+    ],
+    "defaultPrompt": [
+      "How does this app work?",
+      "Draw this app's architecture.",
+      "Explain this feature well enough to rebuild it."
+    ]
+  }
+}

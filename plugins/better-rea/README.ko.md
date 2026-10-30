@@ -2,7 +2,7 @@
 
 [English](./README.md) · 한국어
 
-**컴파일된 앱에 대한 REA의 출력을 '자신만만한 추측'에서 '검증된 발견'으로 바꾸는 Claude Code 스킬 — 증거·한계 루프, 필수 보고 형식, 그리고 리버스엔지니어링 문헌에서 뽑아낸 방법론 레퍼런스, 증거 없는 주장은 떨구는 검증기까지.**
+**REA의 능력을 끝까지 끌어내는 에이전트 스킬 — 컴파일된 앱을 들여다본 결과가 '자신만만한 추측'이 아니라 '검증된 발견'이 되게.**
 
 REA(Reverse Engineer Anything)는 에이전트를 실제 분석 엔진에 연결합니다 — 네이티브 바이너리에는 Ghidra, Electron·웹 앱에는 자바스크립트 분석. REA의 툴이 **증거**를 만들어냅니다: 디컴파일된 함수, 호출 그래프, 문자열, 런타임 트레이스. 그런데 그 툴이 에이전트가 **일을 끝까지 하게** 만들어주지는 않아요. 한 번 훑고 그중 일부만 꺼낸 다음 나머지를 같은 자신만만한 어조로 메꿔버리는데, 그 결과는 그냥 모델한테 맡겼을 때와 결정적으로 다르지 않습니다. `better-rea`는 결과를 바꾼 세 가지 — 모든 결론을 증거에 묶는 루프, 필수 보고 형식, 그리고 방법론 레퍼런스 — 로 REA를 감싸고, 없거나 반증된 주장을 인용한 보고서를 실패 처리하는 검증기 `scripts/check-ledger.mjs`를 함께 싣습니다.
 
@@ -53,18 +53,21 @@ node scripts/check-ledger.mjs ledger.md --deliverables report.md
 
 ## 설치
 
-Claude Code 안에서, ww-w-ai 마켓플레이스로:
+이 스킬은 REA를 쓸 수 있는 에이전트면 따를 수 있는 평범한 지시문입니다. **Claude Code**와 **Codex**용으로, 같은 `ww-w-ai` 마켓플레이스에서 패키징돼 있습니다.
+
+**Claude Code**
 
 ```text
 /plugin marketplace add ww-w-ai/marketplace
 ```
 
-그다음 `/plugin`에서 `better-rea` 플러그인을 설치합니다.
+그다음 `/plugin`에서 `better-rea`를 설치합니다. (또는 저장소를 직접: `/plugin marketplace add ww-w-ai/better-rea`.)
 
-또는 이 저장소를 직접 추가합니다.
+**Codex**
 
 ```text
-/plugin marketplace add ww-w-ai/better-rea
+codex plugin marketplace add ww-w-ai/marketplace
+codex plugin add better-rea@ww-w-ai
 ```
 
 저장소: <https://github.com/ww-w-ai/better-rea>

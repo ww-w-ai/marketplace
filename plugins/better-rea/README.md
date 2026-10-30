@@ -2,7 +2,7 @@
 
 English · [한국어](./README.ko.md)
 
-**A Claude Code skill that turns REA's output from a confident guess into checked findings about a compiled app — an evidence-and-limits loop, a required report format, and a methods reference drawn from reverse-engineering literature, with a validator that fails any claim without evidence.**
+**An agent skill that draws REA out to its limit — so an agent's look inside a compiled app comes back a checked finding, not a confident guess.**
 
 REA (Reverse Engineer Anything) connects an AI agent to real analysis engines — Ghidra for native binaries, JavaScript analysis for Electron and web apps. Its tools produce the evidence: decompiled functions, call graphs, strings, runtime traces. What they do not do is make the agent finish the job. On a single pass the agent surfaces some of that evidence, fills the rest with a plausible story in the same confident voice, and the result is not reliably better than what the plain model already invents. `better-rea` wraps REA in the three things that change the result — a loop that holds every conclusion to evidence, a required report format, and a methods reference — and ships `scripts/check-ledger.mjs`, a validator that fails any report citing a claim that is missing or refuted.
 
@@ -53,18 +53,21 @@ It fails the deliverable if a statement cites a claim that is not in the ledger 
 
 ## Install
 
-From the ww-w-ai marketplace, inside Claude Code:
+The skill is plain instructions any REA-capable agent can follow; it is packaged for **Claude Code** and **Codex**, from the same `ww-w-ai` marketplace.
+
+**Claude Code**
 
 ```text
 /plugin marketplace add ww-w-ai/marketplace
 ```
 
-Then install the `better-rea` plugin through `/plugin`.
+Then install `better-rea` through `/plugin`. (Or add the repo directly: `/plugin marketplace add ww-w-ai/better-rea`.)
 
-Or add this repository directly:
+**Codex**
 
 ```text
-/plugin marketplace add ww-w-ai/better-rea
+codex plugin marketplace add ww-w-ai/marketplace
+codex plugin add better-rea@ww-w-ai
 ```
 
 Repository: <https://github.com/ww-w-ai/better-rea>
