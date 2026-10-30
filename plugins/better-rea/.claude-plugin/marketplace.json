@@ -1,0 +1,11 @@
+{
+  "name": "better-rea",
+  "owner": { "name": "DubDubDub Corp. (ww-w.ai)", "url": "https://ww-w.ai" },
+  "plugins": [
+    {
+      "name": "better-rea",
+      "source": "./",
+      "description": "Use REA well. Wraps Reverse Engineer Anything in an evidence-and-limits loop, a fixed report template, and domain method notes, so the agent proves each claim about a compiled app with evidence or marks it unknown."
+    }
+  ]
+}
