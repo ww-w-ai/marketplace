@@ -185,7 +185,7 @@
     },
     {
       "name": "better-rea",
-      "description": "Use REA well. Wraps Reverse Engineer Anything in an evidence-and-limits loop, a fixed report template, and domain method notes, so the agent proves each claim about a compiled app with evidence or marks it unknown.",
+      "description": "Get professional reverse-engineering results out of REA without being an RE engineer: an industry-grade report template, a library of real RE methodologies offered as options, and a loop that keeps REA digging until its claims are confirmed.",
       "version": "0.1.0",
       "source": {
         "source": "url",

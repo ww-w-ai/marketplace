@@ -1,7 +1,7 @@
 {
   "name": "better-rea",
   "version": "0.1.0",
-  "description": "Use REA well. Wraps Reverse Engineer Anything in an evidence-and-limits loop, a fixed report template, and domain method notes, so the agent proves each claim about a compiled app with evidence or marks it unknown.",
+  "description": "Get professional reverse-engineering results out of REA without being an RE engineer: an industry-grade report template, a library of real RE methodologies offered as options, and a loop that keeps REA digging until its claims are confirmed.",
   "author": { "name": "DubDubDub Corp. (ww-w.ai)", "url": "https://ww-w.ai" },
   "homepage": "https://github.com/ww-w-ai/better-rea",
   "repository": "https://github.com/ww-w-ai/better-rea",
