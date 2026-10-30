@@ -182,6 +182,27 @@
         "design-system",
         "korean"
       ]
+    },
+    {
+      "name": "ww-w-rea-loop",
+      "description": "Run REA (Reverse Engineer Anything) inside an evidence-and-limits loop: every conclusion is a claim with evidence and a limit, checked before it is written.",
+      "version": "0.1.0",
+      "source": {
+        "source": "url",
+        "url": "https://github.com/ww-w-ai/ww-w-rea-loop.git"
+      },
+      "author": {
+        "name": "ww-w-ai"
+      },
+      "license": "MIT",
+      "keywords": [
+        "reverse-engineering",
+        "rea",
+        "ghidra",
+        "evidence",
+        "claude-code",
+        "skill"
+      ]
     }
   ]
 }

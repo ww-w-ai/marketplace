@@ -1,0 +1,11 @@
+{
+  "name": "ww-w-rea-loop",
+  "owner": { "name": "DubDubDub Corp. (ww-w.ai)", "url": "https://ww-w.ai" },
+  "plugins": [
+    {
+      "name": "ww-w-rea-loop",
+      "source": "./",
+      "description": "Run REA inside an evidence-and-limits loop so every conclusion is checked before it is written."
+    }
+  ]
+}

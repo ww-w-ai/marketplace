@@ -1,0 +1,10 @@
+{
+  "name": "ww-w-rea-loop",
+  "version": "0.1.0",
+  "description": "Run REA (Reverse Engineer Anything) inside an evidence-and-limits loop: every conclusion is a claim with evidence and a limit, checked before it is written.",
+  "author": { "name": "DubDubDub Corp. (ww-w.ai)", "url": "https://ww-w.ai" },
+  "homepage": "https://github.com/ww-w-ai/ww-w-rea-loop",
+  "repository": "https://github.com/ww-w-ai/ww-w-rea-loop",
+  "license": "MIT",
+  "keywords": ["reverse-engineering", "rea", "ghidra", "evidence", "claude-code", "skill"]
+}
