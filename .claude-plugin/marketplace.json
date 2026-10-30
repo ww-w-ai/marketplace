@@ -186,7 +186,7 @@
     {
       "name": "better-rea",
       "description": "Runs REA inside an evidence-and-limits loop: a claim ledger a validator checks, a required report format, and a methods reference drawn from reverse-engineering literature. An agent’s findings about a compiled app get confirmed or left unknown, not guessed.",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "source": {
         "source": "url",
         "url": "https://github.com/ww-w-ai/better-rea.git"
