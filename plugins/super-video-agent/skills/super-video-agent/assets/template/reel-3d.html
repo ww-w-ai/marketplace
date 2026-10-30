@@ -18,7 +18,6 @@
     font-weight: 700;
     font-style: normal;
   }
-{{HANDWRITING_FONT_FACE}}
 </style>
 <!-- three.js addons (GLTFLoader, SkeletonUtils, ...) import the bare name
      "three", which a browser resolves only through an import map, and the
@@ -46,7 +45,6 @@
   var WIDTH = {{WIDTH}};
   var HEIGHT = {{HEIGHT}};
   var FPS = {{FPS}};
-  var HAS_HANDWRITING = {{HAS_HANDWRITING}};
 
   // Internal 3D render resolution vs the full frame. Headless Chromium has
   // no GPU (SwiftShader, a CPU WebGL2 implementation) — 0.75 keeps frame
@@ -608,7 +606,9 @@
   // drawCaptions(t) — this film's own caption look for the picture-first +
   // dub path (references/pipeline.md "Picture first"); replace
   // Reel.caption() with custom draw code the same way the 2D scaffold
-  // documents. dubPlan carries that language's own per-line fields.
+  // documents. dubPlan carries that language's own per-line fields. A film
+  // whose scenes already set the line's words on screen can drop the
+  // Reel.caption() call; then the picture carries no caption.
   function drawCaptions(t) {
     var idx = currentLineIndex(t);
     var line = idx >= 0 ? timings.lines[idx] : null;
