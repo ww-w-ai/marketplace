@@ -2,17 +2,17 @@
 
 English · [한국어](./README.ko.md)
 
-**A Claude Code skill that gets professional reverse-engineering results out of REA — through an industry-grade report template and a library of real RE methodologies — without you being a reverse-engineer.**
+**A Claude Code skill that turns REA's output from a confident guess into checked findings about a compiled app — an evidence-and-limits loop, a required report format, and a methods reference drawn from reverse-engineering literature, with a validator that fails any claim without evidence.**
 
-REA (Reverse Engineer Anything) connects an AI agent to real analysis engines — Ghidra for native binaries, JavaScript analysis for Electron and web apps — and returns findings as evidence with stated limits, leaving what it cannot reach marked unknown. That part is REA's. The problem is what the agent does with it: on a single pass it takes the first answer, fills the rest with a plausible story, and the result is not reliably better than what the plain model already invents. What a real reverse-engineer adds is not another engine — it is persistence, a report discipline, and a repertoire of methods. `better-rea` gives the agent those three, and ships `scripts/check-ledger.mjs`, a validator that fails any report citing a claim that is missing or refuted.
+REA (Reverse Engineer Anything) connects an AI agent to real analysis engines — Ghidra for native binaries, JavaScript analysis for Electron and web apps. Its tools produce the evidence: decompiled functions, call graphs, strings, runtime traces. What they do not do is make the agent finish the job. On a single pass the agent surfaces some of that evidence, fills the rest with a plausible story in the same confident voice, and the result is not reliably better than what the plain model already invents. `better-rea` wraps REA in the three things that change the result — a loop that holds every conclusion to evidence, a required report format, and a methods reference — and ships `scripts/check-ledger.mjs`, a validator that fails any report citing a claim that is missing or refuted.
 
-The three parts below are what the skill adds on top of REA. Together they were what moved the output in testing; REA bolted on by itself did not reliably beat the plain model.
+The three parts below are what the skill adds on top of REA; the evidence itself comes from REA's tools. Together they were what moved the output in testing — REA bolted on by itself did not reliably beat the plain model.
 
 | Part | What it adds on top of REA | Where |
 |---|---|---|
-| Loop | REA already reports evidence, limits, and unknowns. The loop takes that and keeps going — the agent re-runs REA and digs further until the claims it needs are confirmed, instead of stopping at the first plausible pass. | `references/loop.md` |
-| Template | A report template at the level professional reverse-engineering work uses — Observed behavior, Hypotheses, Evidence, Actual mechanism, Reproduce/verify. Giving the agent this shape is what raised the quality of the result. | `assets/report-format.md` |
-| Methodology notes | A library of real reverse-engineering methodologies we researched and cite — how working RE engineers approach a target. Offered as possibilities for the agent to draw on, not one prescribed path, so it is not boxed into a single method. | `references/methods.md` |
+| Loop | REA's tools return the evidence. Marking each conclusion as observation, inference, or unknown and keeping its limit is the discipline REA's own guide asks for; this skill makes it mechanical — a claim ledger the validator checks — and re-runs REA, digging further, until the claims it needs are confirmed. | `references/loop.md` |
+| Report format | A required report structure — Observed behavior, Hypotheses considered, Evidence, Actual mechanism, Reproduce/verify — where every line of the mechanism traces back to a line of evidence. Holding the agent to this format is what raised the quality of the result. | `assets/report-format.md` |
+| Methods reference | Per-question method notes — which REA tools to reach for and the structural patterns worth checking — distilled from a survey of open reverse-engineering literature and practice. Offered as possibilities to confirm or rule out, not one prescribed path. | `references/methods.md` |
 | Enforcement | The ledger validator exits non-zero if a report cites a claim that is not in the ledger or was refuted. | `scripts/check-ledger.mjs` |
 
 By DubDubDub Corp. ([ww-w.ai](https://ww-w.ai)). MIT license.
@@ -21,15 +21,15 @@ By DubDubDub Corp. ([ww-w.ai](https://ww-w.ai)). MIT license.
 
 You have a built app and no source. You point an agent at REA and ask it to explain the architecture. You get a clean diagram, named modules, and a confident story about how the feature works.
 
-Then you check. The module names are guesses. The data flow is what a typical app of that kind would do, not what this one does. Nothing in the answer points to a function, an address, or a line of decompiled code. The evidence was available — REA surfaces it — but the agent stopped early and wrote the gap as if it were a fact, with no report discipline and no method behind where it looked.
+Then you check. The module names are guesses. The data flow is what a typical app of that kind would do, not what this one does. Nothing in the answer points to a function, an address, or a line of decompiled code. REA's tools had surfaced the evidence — but the agent stopped early and wrote the gap as if it were a fact, with no report discipline and no method behind where it looked.
 
 In testing across several setups, bolting REA on by itself did not reliably beat the plain model. The lift came from the three parts below, and only when they were applied together.
 
 ## What better-rea adds
 
-**1. A loop, not a single pass.** REA returns evidence, limits, and unknowns on its own. Left at one pass, the agent takes the first answer. The skill runs REA inside a loop: every conclusion goes into a ledger as a claim, and the agent keeps digging and re-running the analysis until the claims it needs are confirmed — or are honestly left unknown. The persistence is the point.
+**1. A loop, not a single pass.** REA's tools give the evidence; sorting it into observations, inferences, and unknowns — and keeping each claim's limit — is the discipline REA's own guide calls for. Left at one pass, the agent takes the first answer anyway. The skill makes the discipline mechanical: every conclusion goes into a ledger as a claim with its evidence and its limit, a validator checks it, and the agent keeps digging and re-running the analysis until the claims it needs are confirmed — or honestly left unknown. The persistence is the point.
 
-**2. An industry-grade report template.** The report is built from the ledger in the shape professional reverse-engineering work uses:
+**2. A required report format.** The report is built from the ledger in one structure:
 
 ```text
 Observed behavior         what the app does, seen from outside
@@ -39,9 +39,9 @@ Actual mechanism          the conclusion; every statement traces to a line in Ev
 Reproduce / verify        steps another person can run to check it
 ```
 
-Giving the agent this template, rather than letting it free-form an answer, is what raised the quality of the result.
+Holding the agent to this format, rather than letting it free-form an answer, is what raised the quality of the result.
 
-**3. Real RE methodologies, offered as possibilities.** The skill carries a library of methodologies we researched from how working reverse-engineers actually operate — where the mechanism tends to live, which paths to trace, what to confirm against what. They are given to the agent as options to draw on, not a single mandated procedure, so it reaches for the right method instead of the first one.
+**3. A methods reference, offered as possibilities.** For each kind of question — the app's parts, what loads what, one feature end to end, who calls whom, data across boundaries, threads and timing, values and limits — the skill carries notes on which REA tools to reach for and which structural patterns to check for. The notes are distilled from a survey of open reverse-engineering literature and working practice, and they are given to the agent as possibilities to confirm or rule out, not a single mandated procedure, so it reaches for the right method instead of the first one.
 
 Before delivery, the validator checks the report against the ledger:
 
@@ -77,7 +77,7 @@ After install, ask the agent in plain language. The skill triggers on requests l
 - "Draw its architecture."
 - "Explain this feature well enough to rebuild it."
 
-The agent runs REA, keeps a claim ledger, loops until its claims are confirmed, runs the validator, and returns a report in the template. It works best when REA and its analysis engines (for example Ghidra for native binaries) are available to the agent. Without them there is little evidence to cite, and by the loop's rules those parts stay "unknown" rather than being filled with a guess.
+The agent runs REA, keeps a claim ledger, loops until its claims are confirmed, runs the validator, and returns a report in the required format. It works best when REA and its analysis engines (for example Ghidra for native binaries) are available to the agent. Without them there is little evidence to cite, and by the loop's rules those parts stay "unknown" rather than being filled with a guess.
 
 ## Intended use
 
@@ -88,8 +88,8 @@ Use this skill on apps you have the right to analyze: your own apps, or apps you
 ```text
 SKILL.md                     the skill instructions the agent loads
 references/loop.md           the evidence-and-limits loop
-references/methods.md        the RE methodology notes
-assets/report-format.md      the report template
+references/methods.md        the methods reference
+assets/report-format.md      the required report format
 assets/ledger-template.md    the claim ledger template
 scripts/check-ledger.mjs     the ledger validator
 ```

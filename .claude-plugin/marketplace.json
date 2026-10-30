@@ -185,7 +185,7 @@
     },
     {
       "name": "better-rea",
-      "description": "Get professional reverse-engineering results out of REA without being an RE engineer: an industry-grade report template, a library of real RE methodologies offered as options, and a loop that keeps REA digging until its claims are confirmed.",
+      "description": "Runs REA inside an evidence-and-limits loop: a claim ledger a validator checks, a required report format, and a methods reference drawn from reverse-engineering literature. An agent’s findings about a compiled app get confirmed or left unknown, not guessed.",
       "version": "0.1.0",
       "source": {
         "source": "url",
