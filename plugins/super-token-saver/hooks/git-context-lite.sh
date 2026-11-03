@@ -21,41 +21,28 @@
 
 set -eu
 
-# ── Subagent guard via stdin JSON ───────────────────────────────
-# CC passes hook metadata as JSON on stdin (utils/hooks.ts in CC source).
-# agent_type present → subagent context; skip to avoid spam.
-HOOK_INPUT=$(cat 2>/dev/null || printf '')
-if [ -n "$HOOK_INPUT" ]; then
-  SKIP=$(printf '%s' "$HOOK_INPUT" | node -e '
-    let d="";
-    process.stdin.on("data", c => d += c);
-    process.stdin.on("end", () => {
-      try {
-        const j = JSON.parse(d);
-        if (j.agent_type) { process.stdout.write("1"); return; }
-      } catch {}
-      process.stdout.write("0");
-    });
-  ' 2>/dev/null || printf '0')
-  [ "$SKIP" = "1" ] && exit 0
-fi
 if [ -n "${CLAUDE_CODE_REMOTE:-}" ]; then exit 0; fi
 
-# ── State resolution via shared node lib ────────────────────────
-# Returns a JSON line: {"installed":bool,"dismissed":bool}
-if ! STATE_JSON=$(node -e "
-  const s = require('${CLAUDE_PLUGIN_ROOT}/scripts/lib/git-lite-state.js');
-  process.stdout.write(JSON.stringify({
-    installed: s.shouldInjectReplacement(),
-    dismissed: s.isRecommendationDismissed(),
-  }));
-" 2>/dev/null); then
+# ── Subagent guard + state resolution: one node process ─────────
+# CC passes hook metadata as JSON on stdin (utils/hooks.ts in CC source).
+# agent_type present → subagent context; skip to avoid spam.
+# Prints "skip", or "<installed> <dismissed>" from the shared state lib.
+HOOK_INPUT=$(cat 2>/dev/null || printf '')
+if ! RESOLVED=$(HOOK_INPUT="$HOOK_INPUT" node -e '
+  let sub = false;
+  try { sub = !!JSON.parse(process.env.HOOK_INPUT || "{}").agent_type; } catch {}
+  if (sub) {
+    process.stdout.write("skip");
+  } else {
+    const s = require(process.env.CLAUDE_PLUGIN_ROOT + "/scripts/lib/git-lite-state.js");
+    process.stdout.write(s.shouldInjectReplacement() + " " + s.isRecommendationDismissed());
+  }
+' 2>/dev/null); then
   # State lib failed (plugin path issue, node missing) — fail silent
   exit 0
 fi
-
-INSTALLED=$(printf '%s' "$STATE_JSON" | node -e 'let d="";process.stdin.on("data",c=>d+=c).on("end",()=>process.stdout.write(String(JSON.parse(d).installed)))' 2>/dev/null)
-DISMISSED=$(printf '%s' "$STATE_JSON" | node -e 'let d="";process.stdin.on("data",c=>d+=c).on("end",()=>process.stdout.write(String(JSON.parse(d).dismissed)))' 2>/dev/null)
+[ "$RESOLVED" = "skip" ] && exit 0
+read -r INSTALLED DISMISSED <<< "$RESOLVED"
 
 # ── Branch A: Installed → inject minimal replacement ────────────
 if [ "$INSTALLED" = "true" ]; then

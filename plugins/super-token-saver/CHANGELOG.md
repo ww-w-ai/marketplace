@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.9.6] - 2026-11-04
+
+### Changed: the session-start git hook starts one `node` process instead of four
+
+- `hooks/git-context-lite.sh` ran `node` four times at every session start: the subagent check, the
+  state lib, and two more only to re-read fields of the JSON the state lib had just produced. One call
+  now returns `skip` or `<installed> <dismissed>`. Standalone: 0.70 s -> 0.11 s. At session start the
+  hook had taken 3.9 s while the other hooks took 1.5 s each; the saving there was not measured.
+- Output is unchanged for a main session and for a subagent (which still prints nothing). The remote
+  check (`CLAUDE_CODE_REMOTE`) now runs before `node`, so a remote session starts no process.
+
 ## [3.9.5] - 2026-11-03
 
 ### Changed: the rebuilt conversation after a super-compact compaction is smaller
