@@ -71,7 +71,7 @@ Write the title as the conclusion, the lead as the reason, the body as evidence.
 
 Follow `docs/image-workflow.md`. Brief each image with `templates/image-brief.md`.
 
-1. Generate the full slide as one image, with the exact copy, inside the design-system frame (header, body, footer zones).
+1. Generate the full slide as one image, with the exact copy, inside the design-system frame (header, body, footer zones). Put the spacing block from `templates/image-brief.md` in every prompt: generous even gaps between all components (blocks 40px or more, sibling cards 24px or more, edges 80px or more, inner padding 32px or more). Check the gaps in the result and regenerate with any tight pair named.
 2. Show it to the user. Fix content before going further.
 3. Generate it again with the copy removed. Keep text that is part of the artwork (a sign, a label inside an illustration).
 4. Place the text-free image as `.art` and rebuild every word as HTML on top (`html/pages/06-artwork.html`). Shrink or move anything that falls outside the design-system zones.
