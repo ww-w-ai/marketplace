@@ -6,9 +6,9 @@ Do not report a release as done before that, and paste its output in the report.
 ## Where users get the files
 | Channel | Reads | Updated by |
 |---|---|---|
-| Claude Code | `.claude-plugin/marketplace.json`, then the plugin's source repository | steps 3 and 6 |
-| Codex | the copy under `plugins/<plugin>/` in this repository | step 6 |
-| GitHub visitors | tags and Releases of the source repository | steps 4 and 5 |
+| Claude Code | `.claude-plugin/marketplace.json`, then the plugin's source repository | steps 4 and 7 |
+| Codex | the copy under `plugins/<plugin>/` in this repository | step 7 |
+| GitHub visitors | tags and Releases of the source repository | steps 5 and 6 |
 
 Claude Code can already show the new version while Codex, the tag and the Release are still old. Bumping
 `marketplace.json` alone is not a release.
@@ -16,14 +16,15 @@ Claude Code can already show the new version while Codex, the tag and the Releas
 ## Steps (`<src>` = the plugin's source repository, `X.Y.Z` = the new version)
 1. **Base.** `git -C <src> fetch origin --tags`; start from the current `origin/main`. Check for a release already in progress: compare the versions in `origin/main`, the tags and the Releases (`release.py check`).
 2. **Tests** pass in `<src>`. For super-video-agent: `npm --prefix <src>/skills/super-video-agent test`.
-3. **Version bump** in every version file, committed as `Release X.Y.Z`. super-video-agent: `.claude-plugin/plugin.json`, `.codex-plugin/plugin.json`, `skills/super-video-agent/package.json`, `skills/super-video-agent/package-lock.json` (2 places). Stage by path; leave other sessions' uncommitted files alone. If the READMEs or docs changed what users see, commit them before this step.
-4. **Annotated tag** on that commit, pushed with main: `git -C <src> tag -a vX.Y.Z -m "X.Y.Z — <summary>" <commit>`, then `git -C <src> push origin main vX.Y.Z`. Never a lightweight tag.
-5. **GitHub Release**, marked latest, with notes written for users (sections by area, one bullet per change, from the commits and `docs/evolution/ledger.md`): `gh release create vX.Y.Z -R <owner/repo> --verify-tag --latest -t "X.Y.Z — <summary>" -F <notes.md>`.
-6. **Marketplace.** In this repository: `git pull --ff-only`, then `python3 scripts/release.py sync <plugin> <src> --version X.Y.Z` (copies the tag's files, force-adds ignored ones, bumps `marketplace.json`, stages). Review `git diff --cached --stat`, commit `Publish <plugin> X.Y.Z for Claude Code and Codex`, push.
-7. **Local installs.**
+3. **Documents first.** Update everything a user or maintainer reads for what this release changes, and commit it before the version bump so the tag and the Codex copy carry it: every language of the README (`README.md`, `README.ko.md`, `README.zh-Hans.md`, `README.zh-Hant.md` for super-video-agent), `docs/design*.md` where a statement became false, the skill's reference tables, and `docs/evolution/ledger.md` for evolution items. Check with `git -C <src> log <last-tag>..HEAD` and `git -C <src> log -1 -- README.md`. If this repository's `README.md` describes the plugin differently now, update it in step 7. No user-visible change is a valid result: say so in the report.
+4. **Version bump** in every version file, committed as `Release X.Y.Z`. super-video-agent: `.claude-plugin/plugin.json`, `.codex-plugin/plugin.json`, `skills/super-video-agent/package.json`, `skills/super-video-agent/package-lock.json` (2 places). Stage by path; leave other sessions' uncommitted files alone. If the READMEs or docs changed what users see, commit them before this step.
+5. **Annotated tag** on that commit, pushed with main: `git -C <src> tag -a vX.Y.Z -m "X.Y.Z — <summary>" <commit>`, then `git -C <src> push origin main vX.Y.Z`. Never a lightweight tag.
+6. **GitHub Release**, marked latest, with notes written for users (sections by area, one bullet per change, from the commits and `docs/evolution/ledger.md`): `gh release create vX.Y.Z -R <owner/repo> --verify-tag --latest -t "X.Y.Z — <summary>" -F <notes.md>`.
+7. **Marketplace.** In this repository: `git pull --ff-only`, then `python3 scripts/release.py sync <plugin> <src> --version X.Y.Z` (copies the tag's files, force-adds ignored ones, bumps `marketplace.json`, stages). Review `git diff --cached --stat`, commit `Publish <plugin> X.Y.Z for Claude Code and Codex`, push.
+8. **Local installs.**
    - Claude Code: `claude plugin marketplace update ww-w-ai`, then `claude plugin update <plugin>@ww-w-ai --scope user` and `--scope project`. A restart applies it.
    - Codex: `codex plugin marketplace upgrade ww-w-ai`, then `codex plugin add <plugin>@ww-w-ai`.
-8. **Check:** `python3 scripts/release.py check <plugin> <src> --local` prints `RELEASED`.
+9. **Check:** `python3 scripts/release.py check <plugin> <src> --local` prints `RELEASED`.
 
 ## Misses found in past releases (audit of super-video-agent 1.8.0–1.23.0, 2026-11-27)
 | Miss | Versions | Now caught by |

@@ -29,6 +29,10 @@ codex plugin add ai-native-cowork@ww-w-ai
 | [super-video-agent](https://github.com/ww-w-ai/super-video-agent) | Turn a PDF, essay, card news or topic into a narrated short where every frame is drawn in code. Voice first, read-out rules for any language, one-scene re-renders. Claude Code and Codex. |
 | [ww-w-slide-gen](https://github.com/ww-w-ai/ww-w-slide-gen) | Build presentations as editable HTML slides: one claim per slide, brand tokens, generated art with editable text on top, one self-contained deck.html. Claude Code and Codex. |
 
+## Releasing
+
+Maintainers: follow [RELEASE.md](RELEASE.md). A release is done only when `scripts/release.py check <plugin> <source-repo> --local` prints `RELEASED`.
+
 ## Install a Plugin
 
 ```bash
